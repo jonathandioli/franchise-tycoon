@@ -547,7 +547,7 @@ function go(v, id){ view = v; if(id!==undefined) cur = id; Pad.on = false; rende
 function render(){
   if(needFamily() || welcomeCode) view = 'welcome';
   else if(!ME && view!=='players') view = 'players';
-  const f = { welcome:vWelcome, players:vPlayers, home:vHome, new:vNew, hub:vHub, post:vPost, shark:vShark, coach:vCoach, train:vTrain, playbook:vPlaybook }[view];
+  const f = { welcome:vWelcome, players:vPlayers, home:vHome, new:vNew, hub:vHub, post:vPost, shark:vShark, coach:vCoach, train:vTrain, playbook:vPlaybook, tryout:vTryout }[view];
   if(f) app.innerHTML = f();
   if(view==='new') bindNew();
   if(view==='players') bindPlayers();
@@ -932,9 +932,35 @@ function answer(v, timedOut){
 }
 
 // After a miss: pause the game, show the fact slowly, then have him type it himself.
-function say(text){
-  if(!S.settings.sound || !window.speechSynthesis) return;
-  try { const u = new SpeechSynthesisUtterance(text); u.rate = .85; speechSynthesis.speak(u); } catch(e){}
+// Browsers default to their most robotic voice. Rank what's installed and use the most natural English one.
+// Premium/Enhanced voices (downloadable in iPad and Mac settings) and Chrome's Google voices sound far better.
+const VOICE_KEY = 'franchise-tycoon.voice';
+const ROBOTIC = /\b(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Deranged|Good News|Hysterical|Jester|Organ|Pipe Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Junior|Ralph|Kathy|Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley)\b/i;
+const Voice = {
+  all(){ try { return (window.speechSynthesis ? speechSynthesis.getVoices() : []).filter(v => /^en/i.test(v.lang)); } catch(e){ return []; } },
+  score(v){
+    let sc = 0;
+    if(ROBOTIC.test(v.name)) sc -= 100;
+    if(/premium/i.test(v.name)) sc += 60;
+    if(/enhanced|natural|neural/i.test(v.name)) sc += 45;
+    if(/google/i.test(v.name)) sc += 30;
+    if(/\b(Ava|Zoe|Samantha|Allison|Evan|Nathan|Tom|Susan|Karen|Daniel|Serena|Jamie|Nicky|Aaron)\b/.test(v.name)) sc += 15;
+    if(/en[-_]US/i.test(v.lang)) sc += 5;
+    return sc;
+  },
+  ranked(){ return this.all().sort((a,b) => this.score(b) - this.score(a)); },
+  saved(){ try { return localStorage.getItem(VOICE_KEY) || ''; } catch(e){ return ''; } },
+  current(){ const vs = this.all(), want = this.saved(); return vs.find(v => v.voiceURI===want) || this.ranked()[0] || null; },
+  set(uri){ try { uri ? localStorage.setItem(VOICE_KEY, uri) : localStorage.removeItem(VOICE_KEY); } catch(e){} },
+};
+try { if(window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { if(view==='coach') render(); }; } catch(e){}
+function say(text, force){
+  if((!S.settings.sound && !force) || !window.speechSynthesis) return;
+  try {
+    const u = new SpeechSynthesisUtterance(text), v = Voice.current();
+    if(v){ u.voice = v; u.lang = v.lang; }
+    u.rate = .9; speechSynthesis.speak(u);
+  } catch(e){}
 }
 function lockIn(a, b, done){
   if(view!=='game') return;
@@ -1108,19 +1134,99 @@ function coachPick(missed){
 }
 const shuffle = arr => { const a = arr.slice(); for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; };
 
+/* ---------- foundations: every play is built on the anchor facts (×2, ×5, ×10) ---------- */
+const PREREQ = {two:[], ten:[], one:[], five:['ten'], nine:['ten'], eleven:['ten'], four:['two'], eight:['two'], three:['two'],
+  six:['five'], seven:['five','two'], twelve:['ten','two']};
+const ANCHORS = ['ten','two','five'];
+// Deepest first: six -> [ten, five]
+function prereqChain(id){ const out = []; const walk = i => (PREREQ[i]||[]).forEach(p => { walk(p); if(!out.includes(p)) out.push(p); }); walk(id); return out; }
+// A step only helps if it's automatic, so an anchor fact counts when it's right AND quick (under 5s on average).
+function anchorState(id){
+  const n = STRATS[id].n, xs = Array.from({length:Math.min(10,maxFactor())-1}, (_,i)=>i+2).filter(x => x!==n);
+  const recs = xs.map(x => S.facts[fkey(n,x)]).filter(r => r && r.n);
+  if(recs.length < Math.ceil(xs.length*.5)) return 'unknown';
+  const ok = recs.filter(r => r.c/r.n >= .8 && r.c && r.t/r.c <= 5000).length;
+  return ok/recs.length >= .75 ? 'solid' : 'weak';
+}
+const STATE_LABEL = {solid:'Solid', weak:'Needs work', unknown:'Not tested yet'};
+// After the film room: check the facts this play is built on (skipping ones already proven solid),
+// drill the first shaky one, then come back to this play's practice reps.
+function afterFilm(){
+  const toTest = prereqChain(T.sid).filter(p => anchorState(p)!=='solid');
+  if(toTest.length) startTryout(toTest, () => afterFoundations(), T.sid);
+  else toReps();
+}
+function afterFoundations(){
+  const weak = prereqChain(T.sid).find(p => anchorState(p)==='weak');
+  if(!weak) return toReps();
+  const parent = T, n = STRATS[weak].n;
+  startTraining(weak, parent.x0, n, false, parent);   // same number as the missed fact: 7×6 -> 7×5
+}
+function toReps(){ T.stage = 'guided'; go('train'); armTrain(); }
+
+let TO = null;  // tryout in progress
+function startTryout(anchors, after, forPlay){
+  const qs = [];
+  anchors.forEach(id => { const n = STRATS[id].n;
+    shuffle(Array.from({length:8}, (_,i)=>i+2).filter(x=>x!==n)).slice(0,4).forEach(x => qs.push(chance(.5) ? {id, a:x, b:n} : {id, a:n, b:x})); });
+  TO = {anchors, qs, i:0, res:{}, after, forPlay, fb:''};
+  anchors.forEach(id => TO.res[id] = {right:0, total:0, ms:0});
+  go('tryout'); armTryout();
+}
+function vTryout(){
+  const f = frById(cur), done = TO.i >= TO.qs.length;
+  const head = `<div class="gamebar"><button class="link" data-act="open" data-id="${f.id}">← Back to front office</button></div>
+    <div><div class="eyebrow">Training Camp</div><h1 class="display" style="font-size:clamp(48px,9vw,72px)">${TO.forPlay ? 'Check your foundations' : 'Tryouts'}</h1>
+    <p style="margin:6px 0 0;font-size:19px;max-width:60ch">${TO.forPlay
+      ? `${esc(STRATS[TO.forPlay].name)} only works if these are automatic: ${TO.anchors.map(id=>'×'+STRATS[id].n).join(' and ')}. Show the coach they're solid.`
+      : `Every play is built on your basics: ${TO.anchors.map(id=>'×'+STRATS[id].n).join(', ')}. Show the coach what you've got.`}</p></div>`;
+  if(done){
+    const rows = TO.anchors.map(id => { const r = TO.res[id], st = anchorState(id);
+      return `<div class="deal"><span><b>×${STRATS[id].n}</b> · ${STRATS[id].name}</span><span class="${st==='solid'?'plus':'minus'}">${r.right} of ${r.total} · ${(r.ms/Math.max(1,r.total)/1000).toFixed(1)}s avg · ${STATE_LABEL[st]}</span></div>`; }).join('');
+    return `<div class="stack" style="max-width:760px">${head}<section class="panel stack"><div class="eyebrow">Tryout results</div><div>${rows}</div>
+      <p style="margin:0" class="muted">Right <i>and</i> quick (under 5 seconds) counts as solid. ${TO.forPlay ? 'Anything that needs work gets a quick drill first, then back to the play.' : 'The coach will start with anything that needs work.'}</p>
+      <div><button class="btn primary big" data-act="tryoutDone">Continue</button></div></section></div>`;
+  }
+  const q = TO.qs[TO.i];
+  return `<div class="stack" style="max-width:760px">${head}<section class="panel stack">
+    <div class="progress">${TO.qs.map((_,i)=>`<i class="${i<TO.i?'on':''}"></i>`).join('')}</div>
+    <div class="eyebrow">No clock, but quick answers count</div>
+    <div class="bigfact tnum">${q.a} × ${q.b}</div>
+    <div class="ansbox empty" id="ansbox">?</div>
+    <div id="tfb" style="font-weight:700;min-height:24px">${TO.fb}</div>
+    ${padHTML()}</section></div>`;
+}
+function armTryout(){
+  if(view!=='tryout' || !TO || TO.i >= TO.qs.length) return;
+  const q = TO.qs[TO.i], ans = q.a*q.b, t0 = performance.now();
+  Pad.start(ans, v => {
+    const ok = +v === ans, ms = performance.now()-t0, r = TO.res[q.id], box = document.getElementById('ansbox');
+    record(q.a, q.b, ok, ms); r.total++; r.ms += Math.min(ms, 15000); if(ok) r.right++;
+    box.className = 'ansbox ' + (ok ? 'right' : 'wrong'); box.textContent = ok ? '✓ ' + ans : `${q.a} × ${q.b} = ${ans}`;
+    ok ? SFX.good() : SFX.bad();
+    TO.i++;
+    if(TO.i >= TO.qs.length) save();
+    setTimeout(() => { if(view!=='tryout') return; TO.fb = ''; render(); armTryout(); }, ok ? 600 : 1800);
+  });
+}
+ACT.tryoutDone = () => { const after = TO.after; TO = null; after ? after() : go('playbook'); };
+ACT.tryouts = () => startTryout(ANCHORS, null);
+
 let T = null;
-function startTraining(sid, a, b, required){
+function startTraining(sid, a, b, required, parent){
   const n = STRATS[sid].n, x0 = a===n ? b : a;
   const pool = shuffle(Array.from({length:Math.min(maxFactor(),12)-2+1}, (_,i)=>i+2).filter(x => x!==x0));
   const take = k => { const out = []; for(let i=0;i<k;i++) out.push(pool.length ? pool.shift() : rnd(2,9)); return out; };
-  T = {sid, a, b, x0, required, stage:'film', shown:1, guided:take(3), gi:0, si:0, done:[], scrim:[...take(3), x0], ci:0, right:0, fb:'', fbCls:''};
+  T = {sid, a, b, x0, required, parent: parent || null, because: parent ? parent.sid : null, stage:'film', shown:1, guided:take(3), gi:0, si:0, done:[], scrim:[...take(3), x0], ci:0, right:0, fb:'', fbCls:''};
   go('train'); armTrain();
 }
-ACT.train = () => { const f = frById(cur); const [a,b] = f.trainFact || coachPick([]); const {id} = stratFor(a,b); startTraining(id, a, b, true); };
+ACT.train = () => { const f = frById(cur); const [a,b] = f.trainFact || coachPick([]); startTraining(stratFor(a,b).id, a, b, true); };
 ACT.playbook = () => go('playbook');
 ACT.drill = d => { const n = STRATS[d.id].n, x = rnd(3, Math.min(9, maxFactor())); startTraining(d.id, x, n, false); };
+// Foundation drill done: back to the play it was building toward, straight to practice reps.
+ACT.runOriginal = () => { T = T.parent; toReps(); };
 ACT.nextStep = () => { T.shown++; render(); };
-ACT.toGuided = () => { T.stage = 'guided'; render(); armTrain(); };
+ACT.toGuided = () => { if(T.parent) toReps(); else afterFilm(); };
 ACT.finishTraining = () => { go('hub'); };
 
 function vPlaybook(){
@@ -1130,6 +1236,9 @@ function vPlaybook(){
   <div class="stack">
     <div><div class="eyebrow">Training Camp</div><h1 class="display" style="font-size:clamp(48px,9vw,72px)">The Playbook</h1>
       <p class="muted" style="margin:6px 0 0;max-width:60ch">Every fact has a play that makes it easier. Pick one to practice.</p></div>
+    <section class="panel stack"><div class="eyebrow">Your foundations</div>
+      <div class="row" style="gap:20px">${ANCHORS.map(id => { const st = anchorState(id); return `<span><b>×${STRATS[id].n}</b> <span class="${st==='solid'?'plus':st==='weak'?'minus':'muted'}">${STATE_LABEL[st]}</span></span>`; }).join('')}</div>
+      <div><button class="btn" data-act="tryouts">Take tryouts</button></div></section>
     <div class="plays">${PLAYBOOK.map(id => { const s = STRATS[id]; return `<button class="play" data-act="drill" data-id="${id}"><span class="x">×${s.n}</span><h3 class="display">${s.name}</h3><span>${s.tip}</span><span class="muted" style="font-size:14px">In class: ${s.school}</span></button>`; }).join('')}</div>
   </div>`;
 }
@@ -1145,7 +1254,8 @@ function vTrain(){
 
   if(T.stage==='film'){
     const steps = s.steps(T.x0), all = T.shown >= steps.length;
-    body = `<section class="panel stack"><div class="eyebrow">Film room · watch the play</div>
+    body = `${T.because ? `<section class="traincard"><div><div class="display" style="font-size:28px">First things first</div><div>${esc(STRATS[T.because].name)} is built on your ×${n} facts, and those need work. Lock these in, then we'll go back to ${esc(STRATS[T.because].name)}.</div></div></section>` : ''}
+      <section class="panel stack"><div class="eyebrow">Film room · watch the play</div>
       <div class="bigfact tnum">${T.a} × ${T.b}${all ? ` = <span style="color:var(--amber)">${T.a*T.b}</span>` : ''}</div>
       ${T.a!==T.b ? `<div class="muted" style="text-align:center;font-weight:600">Order doesn't matter: ${T.a} × ${T.b} is the same as ${T.b} × ${T.a}. (In class: turn-around facts.)</div>` : ''}
       <div class="steps">${steps.slice(0,T.shown).map((st,i)=>stepRow(i, st[0], st[1], i===steps.length-1?'final':'')).join('')}</div>
@@ -1165,7 +1275,7 @@ function vTrain(){
   }
   else if(T.stage==='scrim'){
     const x = T.scrim[T.ci], flip = (T.ci % 2 === 1), last = T.ci === T.scrim.length-1;
-    body = `<section class="panel stack">${bar}<div class="eyebrow">Scrimmage · ${T.ci+1} of ${T.scrim.length} · no clock, use the play in your head${last?' · this is the one from the game!':''}</div>
+    body = `<section class="panel stack">${bar}<div class="eyebrow">Scrimmage · ${T.ci+1} of ${T.scrim.length} · no clock, use the play in your head${last && !T.because ? ' · this is the one from the game!' : ''}</div>
       <div class="bigfact tnum">${flip ? `${n} × ${x}` : `${x} × ${n}`}</div>
       <div class="ansbox empty" id="ansbox">?</div>
       <div id="tfb" class="${T.fbCls}" style="font-weight:700;min-height:24px">${T.fb}</div>
@@ -1176,7 +1286,8 @@ function vTrain(){
       <div class="res display W" style="font-size:clamp(64px,12vw,110px)">Training complete</div>
       <p style="margin:0;font-size:19px">${T.right} of ${T.scrim.length} in the scrimmage. You just learned <b>${s.name}</b> for ×${n} facts.</p>
       ${T.required ? `<div class="display" style="font-size:36px;color:var(--good)">+$15M training bonus</div>` : ''}
-      <div><button class="btn primary big" data-act="finishTraining">${T.required ? 'Back to the front office' : 'Done'}</button></div></section>`;
+      <div class="row" style="justify-content:center">${T.because ? `<button class="btn primary big" data-act="runOriginal">Back to ${esc(STRATS[T.because].name)}</button>` : ''}
+        ${T.because ? '' : `<button class="btn primary big" data-act="finishTraining">${T.required ? 'Back to the front office' : 'Done'}</button>`}</div></section>`;
   }
   return `<div class="stack" style="max-width:760px">${head}${body}</div>`;
 }
@@ -1324,6 +1435,9 @@ function vCoach(){
       <div class="legend">${LV.map(l=>`<span><i style="background:${l.c}"></i>${l.t}</span>`).join('')}</div>
       <div id="cellinfo" style="text-align:center">${sel}</div>
     </section>
+    <section class="panel stack"><div class="eyebrow">Foundations · the anchor facts every strategy builds on</div>
+      <div class="row" style="gap:24px">${ANCHORS.map(id => { const st = anchorState(id); return `<span style="font-size:18px"><b>×${STRATS[id].n}</b> <span class="${st==='solid'?'plus':st==='weak'?'minus':'muted'}">${STATE_LABEL[st]}</span></span>`; }).join('')}</div>
+      <p class="muted" style="margin:0">Solid means right and under 5 seconds. Training Camp drills a shaky foundation before teaching the plays built on it.</p></section>
     ${trouble.length ? `<section class="panel stack"><div class="eyebrow">Trickiest facts right now</div><div class="trouble">${trouble.map(t=>{const [a,b]=t.k.split('x');return `<span>${a}×${b}</span>`;}).join('')}</div><p class="muted" style="margin:0">The game automatically shows these more often.</p></section>` : ''}
     <section class="panel stack"><div class="eyebrow">Settings</div>
       <div class="stack" style="gap:6px"><b>Facts in play</b>${seg('setRange', S.settings.range, [['auto',`Auto (now ×1–${S.unlocked})`],['10','×1–10'],['11','×1–11'],['12','×1–12']])}
@@ -1331,6 +1445,12 @@ function vCoach(){
       <div class="stack" style="gap:6px"><b>Game clock per play</b>${seg('setTimer', S.settings.timer, [['auto',`Adaptive (now ${PACE[S.pace]}s)`],[20,'Fixed 20s'],[12,'Fixed 12s'],[8,'Fixed 8s'],[5,'Fixed 5s']])}
         <span class="muted" style="font-size:14px">Adaptive speeds up one step after 3 right in a row and slows down one step after 2 misses (${PACE[0]}s down to ${PACE[PACE.length-1]}s). Answers in the first 40% of the clock count as “fast” big plays.</span></div>
       <div class="stack" style="gap:6px"><b>Sound</b>${seg('setSound', S.settings.sound, [[true,'On'],[false,'Off']])}</div>
+      <div class="stack" style="gap:6px"><b>Voice</b>
+        ${(() => { const vs = Voice.ranked(), curV = Voice.current();
+          if(!vs.length) return `<span class="muted" style="font-size:14px">This browser has no voices to read facts aloud.</span>`;
+          return `<div class="row"><select class="txt" id="voiceSel" style="max-width:420px;font-size:17px">${vs.map(v => `<option value="${esc(v.voiceURI)}" ${curV && v.voiceURI===curV.voiceURI ? 'selected' : ''}>${esc(v.name)}${Voice.score(v) >= 45 ? ' ★' : ''}</option>`).join('')}</select>
+            <button class="btn" data-act="testVoice">Test voice</button></div>`; })()}
+        <span class="muted" style="font-size:14px">★ = natural-sounding. For the best voices, download one: on iPad, <b>Settings → Accessibility → Spoken Content → Voices → English</b> and pick a <b>Premium</b> or <b>Enhanced</b> voice (Ava and Zoe are good). On a Mac, <b>System Settings → Accessibility → Spoken Content → System voice → Manage Voices</b>. Then reload the game. This choice is saved for this device.</span></div>
     </section>
     ${cloudPanel()}
     <section class="stack" id="resetzone"><div><button class="link" data-act="askReset">Reset ${esc(ME.name)}'s progress</button></div></section>
@@ -1341,6 +1461,8 @@ ACT.cell = d => { coachSel = [+d.a, +d.b]; render(); };
 ACT.setRange = d => { S.settings.range = d.v; save(); render(); };
 ACT.setTimer = d => { S.settings.timer = d.v==='auto' ? 'auto' : +d.v; save(); render(); };
 ACT.setSound = d => { S.settings.sound = d.v==='true'; save(); render(); };
+ACT.testVoice = () => say('7 times 8 is 56', true);
+document.addEventListener('change', e => { if(e.target.id==='voiceSel'){ Voice.set(e.target.value); say('7 times 8 is 56', true); } });
 ACT.askReset = () => { document.getElementById('resetzone').innerHTML = `<div class="row"><span>Erase ${esc(ME.name)}'s teams and fact history?</span><button class="btn danger" data-act="reset">Erase everything</button><button class="btn" data-act="coach">Cancel</button></div>`; };
 ACT.reset = () => { S = ME.save = normalize(null); save(); toast(`${ME.name}'s progress erased.`); go('home'); };
 ACT.coachPlayer = d => { setMe(d.v); render(); };
