@@ -1,4 +1,4 @@
-// Cloud save for Franchise Tycoon.
+// Cloud save for Fact Franchise.
 // Each player is one JSON file in a private Vercel Blob store, grouped by family code:
 //   saves/<hash of family code>/<player id>.json
 //   GET  /api/save?code=smith-7421              -> { players: [ {id, name, color, updated, deleted?, save}, ... ] }
@@ -22,6 +22,7 @@ const hasBlobCredentials = () => Boolean(blobToken() || process.env.BLOB_STORE_I
 const MAX_BYTES = 512 * 1024;
 
 function familyPrefix(code) {
+  // Keep the original salt: changing it would orphan every existing family's saves.
   const h = createHash('sha256').update('franchise-tycoon:' + code).digest('hex').slice(0, 40);
   return `saves/${h}/`;
 }
@@ -69,7 +70,7 @@ export default async function handler(req, res) {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const valid = body && typeof body === 'object' && body.id === player && typeof body.name === 'string'
         && body.name.length <= 24 && (body.deleted === true || (body.save && Array.isArray(body.save.franchises)));
-      if (!valid) return res.status(400).json({ error: 'That does not look like a Franchise Tycoon player.' });
+      if (!valid) return res.status(400).json({ error: 'That does not look like a Fact Franchise player.' });
       const json = JSON.stringify(body);
       if (json.length > MAX_BYTES) return res.status(413).json({ error: 'Save is too large.' });
       await put(prefix + player + '.json', json, {

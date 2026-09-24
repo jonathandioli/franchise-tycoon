@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0B131D">
-<title>Franchise Tycoon</title>
+<title>Fact Franchise</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -244,6 +244,7 @@ const signed = n => (n<0?'−':'+') + amt(n);
 const today = () => new Date().toISOString().slice(0,10);
 
 /* ================= save data ================= */
+// Storage keys keep the original 'franchise-tycoon' names so saves survive the rename to Fact Franchise.
 const KEY = 'franchise-tycoon.v1';
 function fresh(){ return {v:1, facts:{}, franchises:[], unlocked:10,
   settings:{range:'auto', timer:'auto', timerV:2, sound:true}, pace:3, paceV:2,
@@ -595,7 +596,7 @@ function vWelcome(){
       <div><button class="btn" data-act="playLocal">Play on this device for now</button></div>
       <span class="muted" style="font-size:14px">You can connect a family code later in Coach's Office.</span></section>` : ''}`;
   return `
-  <header class="masthead"><div class="eyebrow">Own the team. Run the business. Win it all.</div><h1 class="display">Franchise <span>Tycoon</span></h1></header>
+  <header class="masthead"><div class="eyebrow">Own the team. Run the business. Win it all.</div><h1 class="display">Fact <span>Franchise</span></h1></header>
   <h2 class="display" style="font-size:34px;margin-bottom:12px">${welcomeCode ? 'Your family is set up' : 'Set up your family'}</h2>
   ${body}`;
 }
@@ -669,7 +670,7 @@ function vPlayers(){
       <div class="swatches">${PLAYER_COLORS.map(c=>`<button class="swatch" style="--c:${c}" data-act="pickPColor" data-v="${c}" aria-pressed="${addDraft.color===c}" aria-label="Color ${c}"></button>`).join('')}</div>
       <div class="row"><button class="btn primary" data-act="addPlayer">Add player</button><button class="link" data-act="addCancel">Cancel</button></div></section>` : '';
   return `
-  <header class="masthead"><div class="eyebrow">Own the team. Run the business. Win it all.</div><h1 class="display">Franchise <span>Tycoon</span></h1></header>
+  <header class="masthead"><div class="eyebrow">Own the team. Run the business. Win it all.</div><h1 class="display">Fact <span>Franchise</span></h1></header>
   <h2 class="display" style="font-size:34px;margin-bottom:12px">${ps.length ? "Who's playing?" : 'Add your first player'}</h2>
   <div class="frgrid">${cards}
     ${addDraft ? '' : `<button class="frcard new" data-act="addStart"><span class="display">+ Add player</span><span>Each player gets their own teams and progress</span></button>`}
@@ -719,7 +720,7 @@ function vHome(){
   <header class="masthead">
     <div class="row" style="gap:12px;margin-bottom:6px"><span class="pchip" style="--c:${ME.color}">${esc(ME.name)}</span><button class="link" data-act="switchPlayer">Switch player</button></div>
     <div class="eyebrow">Own the team. Run the business. Win it all.</div>
-    <h1 class="display">Franchise <span>Tycoon</span></h1>
+    <h1 class="display">Fact <span>Franchise</span></h1>
     ${S.stats.answered ? `<div class="statstrip">
       <div><b class="tnum">${S.stats.answered.toLocaleString()}</b><span class="muted">plays made</span></div>
       <div><b class="tnum">${acc}%</b><span class="muted">accuracy</span></div>
