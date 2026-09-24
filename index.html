@@ -314,7 +314,7 @@ const Cloud = {
     clearTimeout(this.timers[id]);
     this.timers[id] = setTimeout(() => { delete this.timers[id]; this.push(FAM.players.find(p=>p.id===id)); }, 4000);
   },
-  flush(){ Object.keys(this.timers).forEach(id => { clearTimeout(this.timers[id]); delete this.timers[id]; this.push(FAM.players.find(p=>p.id===id), true); }); },
+  flush(){ return Promise.all(Object.keys(this.timers).map(id => { clearTimeout(this.timers[id]); delete this.timers[id]; return this.push(FAM.players.find(p=>p.id===id), true); })); },
   // Merge player by player: whichever copy of each player is newer wins; local-only players get uploaded.
   async sync(){
     if(!this.code || !this.usable) return;
@@ -545,16 +545,114 @@ let view = 'home', cur = null, draft = null;
 const frById = id => S.franchises.find(f=>f.id===id);
 function go(v, id){ view = v; if(id!==undefined) cur = id; Pad.on = false; render(); window.scrollTo(0,0); }
 function render(){
-  if(!ME && view!=='players') view = 'players';
-  const f = { players:vPlayers, home:vHome, new:vNew, hub:vHub, post:vPost, shark:vShark, coach:vCoach, train:vTrain, playbook:vPlaybook }[view];
+  if(needFamily() || welcomeCode) view = 'welcome';
+  else if(!ME && view!=='players') view = 'players';
+  const f = { welcome:vWelcome, players:vPlayers, home:vHome, new:vNew, hub:vHub, post:vPost, shark:vShark, coach:vCoach, train:vTrain, playbook:vPlaybook }[view];
   if(f) app.innerHTML = f();
   if(view==='new') bindNew();
   if(view==='players') bindPlayers();
+  if(view==='welcome'){ const i = document.getElementById('famcode'); if(i){ i.focus(); i.onkeydown = e => { if(e.key==='Enter') ACT.connect({}, document.querySelector('[data-act=connect]')); }; } }
 }
 const ACT = {};
 
+/* ================= FAMILY SETUP (first visit on a device) ================= */
+// On the web, a device joins a family (by code) before anyone plays, so every player is saved to the cloud.
+// Opened as a file, or when cloud save is down, the family step is skipped and saves stay on the device.
+const LOCAL_KEY = 'franchise-tycoon.localOnly';
+let localOnly = (()=>{ try { return localStorage.getItem(LOCAL_KEY)==='1'; } catch(e){ return false; } })();
+let welcomeMode = '', welcomeCode = '', welcomeErr = '';
+const needFamily = () => Cloud.usable && !Cloud.code && !localOnly;
+function setLocalOnly(v){ localOnly = v; try { v ? localStorage.setItem(LOCAL_KEY,'1') : localStorage.removeItem(LOCAL_KEY); } catch(e){} }
+
+function vWelcome(){
+  let body;
+  if(welcomeCode) body = `
+    <section class="panel stack" style="max-width:640px">
+      <div class="eyebrow">Your family code</div>
+      <div class="codebig tnum" id="codeText">${esc(welcomeCode)}</div>
+      <p style="margin:0;font-size:18px">Write this down. On the iPad or any other device, choose <b>Join my family</b> and type it in. Everyone's teams and progress will be there.</p>
+      <div class="row"><button class="btn" data-act="copyCode">Copy code</button><button class="btn primary big" data-act="welcomeDone">Add players</button></div>
+    </section>`;
+  else if(welcomeMode==='join') body = `
+    <section class="panel stack" style="max-width:640px">
+      <div class="eyebrow">Join my family</div>
+      <p style="margin:0">Type the family code from the other device.</p>
+      <div class="row" style="align-items:end"><label class="fld">Family code<input class="txt" id="famcode" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. comets-452"></label>
+        <button class="btn primary" data-act="connect">Join</button></div>
+      ${welcomeErr ? `<p class="minus" style="margin:0;font-weight:600">${esc(welcomeErr)}</p>` : ''}
+      <div><button class="link" data-act="welcomeBack">← Back</button></div>
+    </section>`;
+  else body = `
+    <div class="plays" style="max-width:760px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
+      <button class="play" data-act="createCode"><span class="x">New family</span><h3 class="display">First time playing</h3><span>We'll make a family code, like comets-452, to use on all your devices.</span></button>
+      <button class="play" data-act="welcomeJoin"><span class="x">Join my family</span><h3 class="display">Already have a code</h3><span>Playing on another device already? Type your family code to bring everyone's teams here.</span></button>
+    </div>
+    ${welcomeErr ? `<section class="panel stack" style="max-width:760px"><p class="minus" style="margin:0;font-weight:600">${esc(welcomeErr)}</p>
+      <div><button class="btn" data-act="playLocal">Play on this device for now</button></div>
+      <span class="muted" style="font-size:14px">You can connect a family code later in Coach's Office.</span></section>` : ''}`;
+  return `
+  <header class="masthead"><div class="eyebrow">Own the team. Run the business. Win it all.</div><h1 class="display">Franchise <span>Tycoon</span></h1></header>
+  <h2 class="display" style="font-size:34px;margin-bottom:12px">${welcomeCode ? 'Your family is set up' : 'Set up your family'}</h2>
+  ${body}`;
+}
+ACT.welcomeJoin = () => { welcomeMode = 'join'; welcomeErr = ''; render(); };
+ACT.welcomeBack = () => { welcomeMode = ''; welcomeErr = ''; render(); };
+ACT.welcomeDone = () => { welcomeCode = ''; welcomeMode = ''; go('players'); };
+ACT.playLocal = () => { setLocalOnly(true); welcomeErr = ''; go('players'); };
+ACT.createCode = async (d, el) => {
+  el.disabled = true;
+  try {
+    const code = await Cloud.generate();
+    welcomeCode = code; welcomeErr = '';      // set first: sync re-renders, and this keeps the code on screen
+    Cloud.setCode(code); setLocalOnly(false);
+    await Cloud.sync();                       // uploads any players already on this device
+  } catch(e){ welcomeCode = ''; welcomeErr = e.message; el.disabled = false; }
+  render();
+};
+ACT.connect = async (d, el) => {
+  const code = normalizeCode(document.getElementById('famcode').value);
+  if(!/^[a-z0-9-]{4,40}$/.test(code)){ welcomeErr = 'Family codes look like comets-452.'; render(); return; }
+  if(el) el.disabled = true;
+  let remote;
+  try { remote = await Cloud.fetchAll(code); } catch(e){ welcomeErr = e.message; render(); return; }
+  if(!remote.some(p => !p.deleted)){ welcomeErr = `No family found for “${code}”. Check the spelling, or go back and start a new family.`; render(); return; }
+  Cloud.setCode(code); setLocalOnly(false); welcomeMode = ''; welcomeErr = '';
+  await Cloud.sync();
+  if(!ME && livePlayers().length===1) setMe(livePlayers()[0].id);
+  toast(`Joined! ${livePlayers().length} player${livePlayers().length===1?'':'s'} in this family.`);
+  go(ME ? 'home' : 'players');
+};
+// Forgive how a code is typed: "Comets 452", "comets452" and "COMETS-452" all mean comets-452.
+const normalizeCode = raw => { const c = String(raw||'').toLowerCase().replace(/[^a-z0-9]/g,''); const m = c.match(/^([a-z]+)(\d+)$/); return m ? `${m[1]}-${m[2]}` : c; };
+ACT.copyCode = () => {
+  const code = welcomeCode || Cloud.code;
+  navigator.clipboard.writeText(code).then(() => toast('Code copied.'), () => {
+    const el = document.getElementById('codeText'); if(!el) return; const r = document.createRange(); r.selectNodeContents(el);
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Code selected. Copy it from here.');
+  });
+};
+ACT.syncNow = () => Cloud.sync();
+// Leaving a family: make sure this device's saves landed, then clear its players so the next family starts clean.
+ACT.switchFamily = async () => {
+  await Cloud.flush();
+  if(Cloud.status==='error'){ toast(`Can't switch yet: ${Cloud.error}`); return; }
+  FAM.players = []; setMe(''); saveLocal();
+  Cloud.setCode(''); Cloud.status = 'off'; setLocalOnly(false);
+  toast('Left the family on this device. Everyone is still saved under the code.'); go('welcome');
+};
+ACT.setupFamily = () => { setLocalOnly(false); welcomeMode = ''; welcomeErr = ''; go('welcome'); };
+
 /* ================= WHO'S PLAYING ================= */
-let addDraft = null, codeMode = '';
+let addDraft = null;
+function familyBar(){
+  if(!Cloud.usable) return '';
+  if(Cloud.code) return `<div class="row muted" style="gap:14px;font-size:15px"><span>Family code <b style="color:var(--text)" id="codeText">${esc(Cloud.code)}</b></span>
+      <button class="link" data-act="copyCode">Copy</button><button class="link" data-act="askSwitchFamily">Switch family</button></div>
+    <div id="familyzone"></div>`;
+  return `<div class="row muted" style="gap:14px;font-size:15px"><span>Saving on this device only.</span><button class="link" data-act="setupFamily">Set up a family code</button></div>`;
+}
+ACT.askSwitchFamily = () => { document.getElementById('familyzone').innerHTML = `<div class="row" style="margin-top:8px"><span>Switch this device to a different family? Everyone here stays saved under <b>${esc(Cloud.code)}</b>.</span><button class="btn danger" data-act="switchFamily">Switch family</button><button class="btn" data-act="cancelSwitch">Cancel</button></div>`; };
+ACT.cancelSwitch = () => { const z = document.getElementById('familyzone'); if(z) z.innerHTML = ''; };
 function vPlayers(){
   const ps = livePlayers();
   const cards = ps.map(p => `
@@ -572,7 +670,7 @@ function vPlayers(){
   <div class="frgrid">${cards}
     ${addDraft ? '' : `<button class="frcard new" data-act="addStart"><span class="display">+ Add player</span><span>Each player gets their own teams and progress</span></button>`}
   </div>${form}
-  <div style="margin-top:28px">${cloudPanel()}</div>`;
+  <div style="margin-top:28px">${familyBar()}</div>`;
 }
 function bindPlayers(){
   const n = document.getElementById('pname');
@@ -591,51 +689,19 @@ ACT.addPlayer = () => {
   toast(`Welcome, ${name}! Start your first franchise.`); go('home');
 };
 
-/* ---------- family code panel (players screen + Coach's Office) ---------- */
+/* ---------- family code panel in Coach's Office ---------- */
 function cloudPanel(){
   let body = '';
   if(!Cloud.usable) body = '';
   else if(Cloud.code) body = `<div class="codebig tnum" id="codeText">${esc(Cloud.code)}</div>
-      <div class="row"><button class="btn" data-act="copyCode">Copy code</button><button class="btn" data-act="syncNow">Sync now</button><button class="link" data-act="disconnect">Disconnect this device</button></div>
-      <p class="muted" style="margin:0;font-size:14px">On another device: open the game, tap <b>I have a code</b>, and type this in.</p>`;
-  else if(codeMode==='enter') body = `<div class="row" style="align-items:end"><label class="fld">Family code<input class="txt" id="famcode" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. comets-452"></label>
-      <button class="btn primary" data-act="connect">Connect</button><button class="link" data-act="codeCancel">Cancel</button></div>`;
-  else body = `<div class="row"><button class="btn primary" data-act="createCode">Create a family code</button><button class="btn" data-act="codeEnter">I have a code</button></div>`;
+      <div class="row"><button class="btn" data-act="copyCode">Copy code</button><button class="btn" data-act="syncNow">Sync now</button><button class="link" data-act="askSwitchFamily">Switch family</button></div>
+      <div id="familyzone"></div>
+      <p class="muted" style="margin:0;font-size:14px">On another device: open the game, choose <b>Join my family</b>, and type this in.</p>`;
+  else body = `<div class="row"><button class="btn primary" data-act="setupFamily">Set up a family code</button></div>`;
   return `<section class="panel stack"><div class="eyebrow">Family code · cloud save</div>
-    <p style="margin:0">One code for the whole family. Enter it on the laptop and the iPad, and every player's teams and progress follow them.</p>
+    <p style="margin:0">One code for the whole family. Every player's teams and progress follow them to any device that joins.</p>
     ${body}<div class="muted" data-cloud style="font-size:14px">${cloudLine()}</div></section>`;
 }
-// Forgive how a code is typed: "Comets 452", "comets452" and "COMETS-452" all mean comets-452.
-const normalizeCode = raw => { const c = String(raw||'').toLowerCase().replace(/[^a-z0-9]/g,''); const m = c.match(/^([a-z]+)(\d+)$/); return m ? `${m[1]}-${m[2]}` : c; };
-ACT.codeEnter = () => { codeMode = 'enter'; render(); const i = document.getElementById('famcode'); if(i) i.focus(); };
-ACT.codeCancel = () => { codeMode = ''; render(); };
-ACT.createCode = async (d, el) => {
-  el.disabled = true; el.textContent = 'Creating…';
-  try { const code = await Cloud.generate(); Cloud.setCode(code); codeMode = ''; await Cloud.sync(); toast(`Family code created: ${code}. Write it down!`); }
-  catch(e){ toast(e.message); }
-  render();
-};
-ACT.connect = async (d, el) => {
-  const code = normalizeCode(document.getElementById('famcode').value);
-  if(!/^[a-z0-9-]{4,40}$/.test(code)){ toast('Family codes look like comets-452.'); return; }
-  el.disabled = true;
-  let remote;
-  try { remote = await Cloud.fetchAll(code); } catch(e){ toast(e.message); el.disabled = false; return; }
-  if(!remote.some(p => !p.deleted)){ toast(`No family found for “${code}”. Check the spelling, or create a new code.`); el.disabled = false; return; }
-  Cloud.setCode(code); codeMode = '';
-  await Cloud.sync();
-  if(!ME && livePlayers().length===1) setMe(livePlayers()[0].id);
-  toast(`Connected! ${livePlayers().length} player${livePlayers().length===1?'':'s'} in this family.`);
-  render();
-};
-ACT.copyCode = () => {
-  navigator.clipboard.writeText(Cloud.code).then(() => toast('Code copied.'), () => {
-    const el = document.getElementById('codeText'); const r = document.createRange(); r.selectNodeContents(el);
-    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Code selected. Copy it from here.');
-  });
-};
-ACT.syncNow = () => Cloud.sync();
-ACT.disconnect = () => { Cloud.flush(); Cloud.setCode(''); Cloud.status = 'off'; toast('Disconnected. Progress stays on this device.'); render(); };
 
 /* ================= HOME ================= */
 function vHome(){
