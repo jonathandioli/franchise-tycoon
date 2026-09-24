@@ -1,0 +1,1168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0B131D">
+<title>Franchise Tycoon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B131D; --panel:#131F2C; --panel2:#1B2A3A; --line:#27394D;
+  --text:#ECF2F8; --muted:#8FA3B8; --amber:#FFB627; --amber-ink:#241800;
+  --good:#3DDC84; --warn:#F2994A; --bad:#FF5A5F; --team:#2E5EAA;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 Barlow,system-ui,-apple-system,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;
+  background:radial-gradient(60% 40% at 15% -5%,rgba(255,220,140,.10),transparent 70%),radial-gradient(60% 40% at 85% -5%,rgba(160,200,255,.10),transparent 70%)}
+.wrap{max-width:1100px;margin:0 auto;padding:16px;padding-bottom:calc(32px + env(safe-area-inset-bottom,0px));padding-top:calc(16px + env(safe-area-inset-top,0px))}
+.display{font-family:Teko,Impact,"Arial Narrow",sans-serif;text-transform:uppercase;letter-spacing:.02em;line-height:.9;font-weight:600}
+.muted{color:var(--muted)}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+h1,h2,h3{margin:0;text-wrap:balance}
+button{font:inherit;color:inherit}
+.btn{font:600 17px/1 Barlow,system-ui,sans-serif;padding:14px 20px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer;touch-action:manipulation;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px}
+.btn:hover{border-color:#3a5470}
+.btn.primary{background:var(--amber);color:var(--amber-ink);border-color:transparent}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.big{font-family:Teko,Impact,sans-serif;font-size:34px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;padding:14px 28px 8px;min-height:64px}
+.btn.danger{background:transparent;border-color:var(--bad);color:var(--bad)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:focus-visible,.link:focus-visible,.tile:focus-visible,.swatch:focus-visible,.key:focus-visible,.cell:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.link{background:none;border:0;color:var(--muted);cursor:pointer;padding:8px 0;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.link:hover{color:var(--text)}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.spread{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.stack{display:grid;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
+.tnum{font-variant-numeric:tabular-nums}
+.ico{width:1em;height:1em;flex:none}
+
+/* ---------- home ---------- */
+.masthead{display:grid;gap:6px;padding-block:18px 26px}
+.masthead h1{font-size:clamp(56px,11vw,104px)}
+.masthead h1 span{color:var(--amber)}
+.statstrip{display:flex;gap:28px;flex-wrap:wrap;margin-top:6px}
+.statstrip b{display:block;font-family:Teko,sans-serif;font-size:32px;line-height:1;font-weight:600}
+.frgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.frcard{border-radius:14px;overflow:hidden;background:var(--panel);border:1px solid var(--line);cursor:pointer;text-align:left;padding:0;display:flex;flex-direction:column;transition:transform .15s}
+.frcard:hover{transform:translateY(-2px)}
+.frcard .top{background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 55%,#000));padding:18px 18px 14px;display:grid;gap:4px;position:relative;min-height:112px}
+.frcard .top .ico{position:absolute;right:14px;top:14px;font-size:40px;opacity:.55}
+.frcard .city{font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.85}
+.frcard .name{font-size:44px}
+.frcard .meta{display:flex;justify-content:space-between;gap:8px;padding:12px 18px;font-weight:600;font-size:15px}
+.frcard.new{border:2px dashed var(--line);background:transparent;align-items:center;justify-content:center;min-height:170px;color:var(--muted);gap:6px}
+.frcard.new .display{font-size:34px;color:var(--text)}
+.frcard.new:hover{border-color:var(--amber)}
+
+/* ---------- new franchise ---------- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.tile{background:var(--panel2);border:2px solid var(--line);border-radius:12px;padding:16px 10px 12px;cursor:pointer;display:grid;justify-items:center;gap:8px;touch-action:manipulation}
+.tile .ico{font-size:44px}
+.tile .display{font-size:28px}
+.tile[aria-pressed="true"]{border-color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,var(--panel2))}
+label.fld{display:grid;gap:6px;font-weight:600;flex:1 1 220px}
+input.txt{font:600 20px Barlow,sans-serif;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);width:100%}
+input.txt:focus{outline:2px solid var(--amber);outline-offset:1px}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}
+.swatch{width:46px;height:46px;border-radius:50%;border:3px solid transparent;cursor:pointer;background:var(--c);box-shadow:inset 0 0 0 2px rgba(0,0,0,.25)}
+.swatch[aria-pressed="true"]{border-color:#fff}
+.preview{border-radius:14px;padding:22px;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 50%,#000));display:flex;align-items:center;gap:16px}
+.preview .ico{font-size:56px;opacity:.8}
+.preview .name{font-size:52px}
+
+/* ---------- hub ---------- */
+.banner{border-radius:16px;padding:24px;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 45%,#000));display:grid;gap:4px;position:relative;overflow:hidden}
+.banner .ico{position:absolute;right:-10px;bottom:-24px;font-size:170px;opacity:.14}
+.banner .name{font-size:clamp(52px,10vw,86px)}
+.banner .city{font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.9}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.kpi b{display:block;font-family:Teko,sans-serif;font-size:40px;line-height:1;font-weight:600;margin-top:4px}
+.kpi .neg{color:var(--bad)}
+.pips{display:flex;gap:6px;margin-top:8px}
+.pip{width:22px;height:8px;border-radius:4px;background:var(--line)}
+.pip.on{background:var(--amber)}
+.playrow{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.upgrades{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.upg{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:10px;align-content:start}
+.upg h3{font-size:26px}
+.upg .lv{display:flex;gap:5px}
+.upg .lv i{width:18px;height:18px;border-radius:4px;background:var(--line)}
+.upg .lv i.on{background:var(--good)}
+.traincard{border-radius:14px;padding:18px 20px;background:linear-gradient(90deg,#16331f,#1a3a24);border:1px solid #2f6b40;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.steps{display:grid;gap:10px}
+.step{display:flex;align-items:baseline;gap:14px;padding:12px 16px;border-radius:12px;background:var(--bg);border:1px solid var(--line);animation:fadeup .45s both}
+.step .n{font-family:Teko,sans-serif;font-size:22px;color:var(--muted);font-weight:600;min-width:1.2em}
+.step .p{font-size:20px;font-weight:600;flex:1}
+.step .v{font-family:Teko,sans-serif;font-size:44px;line-height:.9;font-weight:600;color:var(--amber)}
+.step.final{border-color:var(--amber)}
+.bigfact{font-family:Teko,Impact,sans-serif;font-size:clamp(72px,14vw,112px);font-weight:600;line-height:.9;text-align:center}
+.plays{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.play{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:6px;text-align:left;cursor:pointer}
+.play:hover{border-color:var(--amber)}
+.play .x{font-family:Teko,sans-serif;font-size:40px;line-height:.9;font-weight:600;color:var(--amber)}
+.play h3{font-size:26px}
+.progress{display:flex;gap:6px}
+.progress i{flex:1;height:6px;border-radius:3px;background:var(--line)}
+.progress i.on{background:var(--good)}
+.sharkcard{border-radius:14px;padding:18px 20px;background:linear-gradient(90deg,#0f2e44,#12324a);border:1px solid #2a5878;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.fin{width:54px;height:54px;flex:none}
+.trophies{display:flex;gap:12px;flex-wrap:wrap}
+.trophy{display:grid;justify-items:center;gap:4px;width:110px;text-align:center;font-size:13px;font-weight:600;color:var(--muted)}
+.trophy svg{width:52px;height:52px}
+.deal{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-weight:600}
+.deal:first-child{border-top:0}
+
+/* ---------- game ---------- */
+.gamebar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.game{display:grid;gap:16px}
+@media (min-width:880px){.game{grid-template-columns:1.25fr 1fr;align-items:start}}
+.board{display:grid;grid-template-columns:1fr auto 1fr;background:#05090E;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.tm{padding:10px 14px 6px;display:grid;gap:0;background:linear-gradient(180deg,color-mix(in srgb,var(--c) 70%,#000),color-mix(in srgb,var(--c) 35%,#000))}
+.tm.opp{text-align:right}
+.tm .abbr{font-family:Teko,sans-serif;font-size:26px;font-weight:600;letter-spacing:.06em;line-height:1}
+.tm .sc{font-family:Teko,sans-serif;font-size:clamp(56px,9vw,84px);font-weight:600;line-height:.9;color:#FFE9A8;text-shadow:0 0 18px rgba(255,200,80,.35)}
+.tm .sc.bump{animation:bump .5s}
+@keyframes bump{30%{transform:scale(1.25)}}
+.mid{padding:10px 14px;display:grid;align-content:center;justify-items:center;gap:2px;min-width:92px}
+.mid .per{font-family:Teko,sans-serif;font-size:30px;font-weight:600;color:var(--amber);line-height:1}
+.mid .pn{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.field{position:relative;height:120px;border-radius:14px;margin-top:12px;overflow:hidden;border:1px solid var(--line)}
+.field .end{position:absolute;top:0;bottom:0;width:9%;display:flex;align-items:center;justify-content:center}
+.field .end.l{left:0;background:color-mix(in srgb,var(--us) 85%,#000)}
+.field .end.r{right:0;background:color-mix(in srgb,var(--them) 85%,#000)}
+.field .end span{writing-mode:vertical-rl;transform:rotate(180deg);font-family:Teko,sans-serif;font-size:18px;letter-spacing:.2em;font-weight:600;opacity:.85}
+.ball{position:absolute;top:50%;left:50%;width:26px;height:26px;transform:translate(-50%,-50%);transition:left .6s cubic-bezier(.3,.8,.3,1);filter:drop-shadow(0 3px 3px rgba(0,0,0,.45))}
+.s-football{background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 2px),rgba(255,255,255,.45) calc(10% - 2px) 10%),linear-gradient(#2f7d3b,#276a31)}
+.s-basketball{background:radial-gradient(circle at 50% 50%,transparent 0 30px,rgba(255,255,255,.7) 30px 32px,transparent 32px),linear-gradient(90deg,transparent calc(50% - 1px),rgba(255,255,255,.7) calc(50% - 1px) calc(50% + 1px),transparent calc(50% + 1px)),repeating-linear-gradient(90deg,#c98b4b 0 24px,#bd7f42 24px 48px)}
+.s-baseball{background:radial-gradient(ellipse 55% 95% at 50% 110%,#b07a4a 0 60%,transparent 61%),linear-gradient(#2f7d3b,#276a31)}
+.s-soccer{background:radial-gradient(circle at 50% 50%,transparent 0 30px,rgba(255,255,255,.6) 30px 32px,transparent 32px),linear-gradient(90deg,transparent calc(50% - 1px),rgba(255,255,255,.6) calc(50% - 1px) calc(50% + 1px),transparent calc(50% + 1px)),repeating-linear-gradient(90deg,#2e8b3e 0 12.5%,#287a36 12.5% 25%)}
+.s-hockey{background:linear-gradient(90deg,transparent calc(50% - 2px),#d83b3b calc(50% - 2px) calc(50% + 2px),transparent calc(50% + 2px)),linear-gradient(90deg,transparent calc(33% - 3px),#2f63c9 calc(33% - 3px) 33%,transparent 33%,transparent calc(67% - 3px),#2f63c9 calc(67% - 3px) 67%,transparent 67%),linear-gradient(#eef5fa,#d9e7f0)}
+.call{margin-top:12px;min-height:58px;padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;font-size:19px;font-weight:600;display:flex;align-items:center;gap:10px}
+.call.good{border-color:color-mix(in srgb,var(--good) 60%,var(--line))}
+.call.bad{border-color:color-mix(in srgb,var(--bad) 60%,var(--line))}
+.qpanel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px}
+.side{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.chip{font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 10px;border-radius:999px}
+.chip.o{background:color-mix(in srgb,var(--good) 20%,transparent);color:var(--good)}
+.chip.d{background:color-mix(in srgb,#7DB3FF 20%,transparent);color:#9CC4FF}
+.streak{font-weight:700;color:var(--amber);font-size:15px}
+.q{font-family:Teko,Impact,sans-serif;font-size:clamp(84px,15vw,128px);font-weight:600;line-height:.85;text-align:center;padding-top:10px;letter-spacing:.02em}
+.q small{font-size:.45em;color:var(--muted)}
+.ansbox{font-family:Teko,sans-serif;font-size:60px;font-weight:600;line-height:1;text-align:center;padding:10px 0 4px;border-radius:12px;background:var(--bg);border:2px solid var(--line);min-height:76px}
+.ansbox.empty{color:#3d546c}
+.ansbox.right{border-color:var(--good);color:var(--good)}
+.ansbox.wrong{border-color:var(--bad);color:var(--bad);font-size:44px;padding-top:16px}
+.timer{height:12px;border-radius:6px;background:var(--bg);overflow:hidden;border:1px solid var(--line)}
+.timer i{display:block;height:100%;width:100%;background:var(--good);transform-origin:left;border-radius:6px}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.key{font-family:Teko,sans-serif;font-size:42px;font-weight:600;line-height:1;padding:12px 0 6px;min-height:68px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.key:active{background:#27405a;transform:scale(.97)}
+.key.alt{font-family:Barlow,sans-serif;font-size:22px;padding:0}
+.key.ok{background:var(--amber);color:var(--amber-ink);border-color:transparent}
+
+.banner-fx{position:fixed;inset:0;display:grid;place-items:center;pointer-events:none;z-index:50}
+.banner-fx span{font-family:Teko,Impact,sans-serif;font-weight:700;font-size:clamp(72px,16vw,180px);text-transform:uppercase;color:#FFE9A8;text-shadow:0 0 40px rgba(255,180,40,.7),0 6px 0 #000;animation:slam 1.3s cubic-bezier(.2,.9,.2,1) forwards;letter-spacing:.02em;text-align:center;line-height:.85;padding:0 16px}
+@keyframes slam{0%{transform:scale(2.4);opacity:0}18%{transform:scale(.95);opacity:1}28%{transform:scale(1)}80%{opacity:1}100%{transform:scale(1.05);opacity:0}}
+
+/* ---------- postgame / shark ---------- */
+.final{display:grid;gap:8px;text-align:center;padding-block:10px 4px}
+.final .res{font-size:clamp(80px,16vw,140px)}
+.res.W{color:var(--good)} .res.L{color:var(--bad)} .res.T{color:var(--amber)}
+.twocol{display:grid;gap:16px}
+@media (min-width:880px){.twocol{grid-template-columns:1fr 1fr;align-items:start}}
+.ledger{display:grid;gap:0}
+.ledger div{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-weight:600}
+.ledger div:first-child{border-top:0}
+.ledger .tot{border-top:2px solid var(--text);font-size:20px}
+.plus{color:var(--good)} .minus{color:var(--bad)}
+.bizq{font-size:21px;font-weight:600;line-height:1.35}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cmp > div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+.cmp b{display:block;font-family:Teko,sans-serif;font-size:52px;line-height:1;font-weight:600}
+.quote{font-size:21px;font-weight:500;line-height:1.4;border-left:4px solid var(--amber);padding-left:14px}
+
+/* ---------- coach ---------- */
+.heat{overflow-x:auto}
+.heat table{border-collapse:separate;border-spacing:4px;margin:0 auto}
+.heat th{font-family:Teko,sans-serif;font-size:22px;font-weight:600;color:var(--muted);width:40px;height:34px}
+.cell{width:40px;height:40px;border-radius:8px;border:0;cursor:pointer;font:700 13px Barlow,sans-serif;color:rgba(0,0,0,.65);padding:0}
+.cell.off{opacity:.25}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;font-weight:600;color:var(--muted);justify-content:center}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex-wrap:wrap}
+.seg button{background:transparent;border:0;padding:10px 14px;font-weight:600;cursor:pointer;min-height:44px}
+.seg button[aria-pressed="true"]{background:var(--amber);color:var(--amber-ink)}
+.trouble{display:flex;gap:8px;flex-wrap:wrap}
+.trouble span{font-family:Teko,sans-serif;font-size:26px;font-weight:600;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:4px 10px 0}
+
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;display:grid;gap:8px;width:min(92vw,440px);pointer-events:none}
+#toast div{background:#F4F7FA;color:#0B131D;font-weight:700;padding:12px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.45);animation:tin .3s ease-out}
+@keyframes tin{from{transform:translateY(12px);opacity:0}}
+/* ---------- lock-in (shown after a miss) ---------- */
+.lockin{position:fixed;inset:0;z-index:70;background:rgba(5,9,14,.9);display:grid;place-items:center;padding:16px;overflow-y:auto}
+.li-card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:26px 22px;width:min(540px,100%);display:grid;gap:16px;text-align:center}
+.li-fact{font-family:Teko,Impact,sans-serif;font-size:clamp(84px,19vw,150px);font-weight:600;line-height:.9;display:flex;justify-content:center;align-items:baseline;gap:.22em;flex-wrap:wrap;padding-top:8px}
+.li-q{animation:fadeup .6s both}
+.li-ans{color:var(--amber);opacity:0;display:inline-block}
+.li-ans.show{animation:pop .7s forwards}
+.li-type{display:grid;gap:12px}
+.li-type .ansbox{font-size:52px}
+.shake{animation:shake .35s}
+@keyframes fadeup{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{opacity:0;transform:scale(.3)}60%{opacity:1;transform:scale(1.18)}100%{opacity:1;transform:scale(1)}}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="app" class="wrap"></div>
+<div id="toast" aria-live="polite"></div>
+<script>
+"use strict";
+/* ================= helpers ================= */
+const app = document.getElementById('app');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rnd = (a,b) => a + Math.floor(Math.random()*(b-a+1));
+const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+const chance = p => Math.random() < p;
+// All money in the game is counted in millions: 60 -> $60M, 1250 -> $1.25B.
+const amt = n => { n = Math.abs(Math.round(n)); return n >= 1000 ? '$' + (+(n/1000).toFixed(2)) + 'B' : '$' + n + 'M'; };
+const money = n => (n<0?'−':'') + amt(n);
+const signed = n => (n<0?'−':'+') + amt(n);
+const today = () => new Date().toISOString().slice(0,10);
+
+/* ================= save data ================= */
+const KEY = 'franchise-tycoon.v1';
+function fresh(){ return {v:1, facts:{}, franchises:[], unlocked:10,
+  settings:{range:'auto', timer:'auto', timerV:2, sound:true}, pace:1,
+  stats:{answered:0, correct:0, bestStreak:0, days:{}}}; }
+function normalize(o){ const s = Object.assign(fresh(), o||{}); s.settings = Object.assign(fresh().settings, s.settings); s.stats = Object.assign(fresh().stats, s.stats); s.updated = s.updated || 0;
+  if(!o || !o.settings || o.settings.timerV !== 2){ s.settings.timer = 'auto'; s.settings.timerV = 2; }  // saves from before the adaptive clock
+  s.pace = Math.min(PACE.length-1, Math.max(0, s.pace|0)); return s; }
+// Adaptive game clock: 3 right in a row -> one step faster; 2 misses -> one step slower.
+const PACE = [15, 12, 10, 8, 6.5, 5];
+const clockSecs = () => S.settings.timer==='auto' ? PACE[S.pace] : +S.settings.timer;
+let S;
+try { S = normalize(JSON.parse(localStorage.getItem(KEY))); } catch(e){ S = fresh(); S.updated = 0; }
+function saveLocal(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+function save(){ S.updated = Date.now(); saveLocal(); Cloud.queue(); }
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
+
+/* ================= cloud save (Vercel Blob via /api/save) ================= */
+const CODE_KEY = 'franchise-tycoon.code';
+const Cloud = {
+  code: (()=>{ try { return localStorage.getItem(CODE_KEY) || ''; } catch(e){ return ''; } })(),
+  status: 'off', lastSync: 0, timer: 0, error: '',
+  get usable(){ return /^https?:$/.test(location.protocol); },
+  url(){ return '/api/save?code=' + encodeURIComponent(this.code); },
+  setCode(c){ this.code = c; try { c ? localStorage.setItem(CODE_KEY, c) : localStorage.removeItem(CODE_KEY); } catch(e){} },
+  async fetchRemote(){
+    const r = await fetch(this.url(), {cache:'no-store'});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || 'Cloud save is unavailable.');
+    return j.save;
+  },
+  async push(keepalive){
+    if(!this.code || !this.usable) return;
+    clearTimeout(this.timer); this.timer = 0;
+    this.status = 'saving'; paintCloud();
+    try {
+      const r = await fetch(this.url(), {method:'PUT', headers:{'content-type':'application/json'}, body:JSON.stringify(S), keepalive:!!keepalive});
+      const j = await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(j.error || 'Cloud save failed.');
+      this.status = 'ok'; this.lastSync = Date.now(); this.error = '';
+    } catch(e){ this.status = 'error'; this.error = e.message; }
+    paintCloud();
+  },
+  queue(){ if(!this.code || !this.usable) return; clearTimeout(this.timer); this.timer = setTimeout(()=>this.push(), 4000); },
+  flush(){ if(this.timer) this.push(true); },
+  // On load: keep whichever copy is newer.
+  async sync(){
+    if(!this.code || !this.usable) return;
+    this.status = 'saving'; paintCloud();
+    try {
+      const remote = await this.fetchRemote();
+      if(remote && (remote.updated||0) > (S.updated||0)){
+        S = normalize(remote); saveLocal(); this.status = 'ok'; this.lastSync = Date.now();
+        if(view!=='game' && view!=='post') render();
+        paintCloud();
+      } else if(!remote || (remote.updated||0) < (S.updated||0)) await this.push();
+      else { this.status = 'ok'; this.lastSync = Date.now(); paintCloud(); }
+    } catch(e){ this.status = 'error'; this.error = e.message; paintCloud(); }
+  },
+};
+function cloudLine(){
+  if(!Cloud.usable) return 'Cloud save works once the game is on its web address (not opened as a file).';
+  if(!Cloud.code) return 'Not connected. Progress is saved on this device only.';
+  const c = `Family code “${esc(Cloud.code)}”`;
+  if(Cloud.status==='saving') return `${c} · saving…`;
+  if(Cloud.status==='error') return `${c} · <span class="minus">${esc(Cloud.error)}</span>`;
+  if(Cloud.status==='ok') return `${c} · saved to the cloud at ${new Date(Cloud.lastSync).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}`;
+  return c;
+}
+function paintCloud(){ document.querySelectorAll('[data-cloud]').forEach(el => el.innerHTML = cloudLine()); }
+document.addEventListener('visibilitychange', () => { if(document.visibilityState==='hidden') Cloud.flush(); });
+window.addEventListener('pagehide', () => Cloud.flush());
+
+/* ================= icons ================= */
+const ICONS = {
+  football:'<svg class="ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3"><ellipse cx="24" cy="24" rx="20" ry="12" transform="rotate(-35 24 24)" fill="currentColor" fill-opacity=".25"/><path d="M17 31l14-14M20 22l6 6M23 19l6 6M17 25l6 6" stroke-linecap="round"/></svg>',
+  basketball:'<svg class="ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3"><circle cx="24" cy="24" r="19" fill="currentColor" fill-opacity=".25"/><path d="M5 24h38M24 5v38M11 11c6 6 6 20 0 26M37 11c-6 6-6 20 0 26"/></svg>',
+  baseball:'<svg class="ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3"><circle cx="24" cy="24" r="19" fill="currentColor" fill-opacity=".25"/><path d="M14 9c5 9 5 21 0 30M34 9c-5 9-5 21 0 30" stroke-dasharray="3 3"/></svg>',
+  soccer:'<svg class="ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3"><circle cx="24" cy="24" r="19" fill="currentColor" fill-opacity=".25"/><path d="M24 16l7 5-3 8h-8l-3-8z" fill="currentColor"/><path d="M24 16V6M31 21l9-3M28 29l5 8M20 29l-5 8M17 21l-9-3"/></svg>',
+  hockey:'<svg class="ico" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3"><path d="M8 20v8c0 4 7 7 16 7s16-3 16-7v-8" fill="currentColor" fill-opacity=".25"/><ellipse cx="24" cy="20" rx="16" ry="7" fill="currentColor" fill-opacity=".4"/></svg>',
+};
+const TROPHY = c => `<svg viewBox="0 0 48 48"><path d="M14 6h20v12a10 10 0 0 1-20 0z" fill="${c}"/><path d="M14 10H7v3a7 7 0 0 0 7 7M34 10h7v3a7 7 0 0 1-7 7" fill="none" stroke="${c}" stroke-width="3"/><rect x="21" y="27" width="6" height="8" fill="${c}"/><rect x="14" y="35" width="20" height="6" rx="2" fill="${c}"/></svg>`;
+const FIN = '<svg class="fin" viewBox="0 0 54 54"><circle cx="27" cy="27" r="27" fill="#1d4e6e"/><path d="M8 38c10-2 16-10 20-26 4 12 10 20 18 26z" fill="#9fc6dd"/><path d="M4 40c8 3 14 3 23 0s15-3 23 0" stroke="#5fb0e3" stroke-width="3" fill="none"/></svg>';
+
+/* ================= sports ================= */
+const SPORTS = {
+  football:{name:'Football', periods:4, plays:4, per:i=>'Q'+(i+1), ball:'#8B4A25',
+    O(t,b){ if(t==='fast') return {us:7,big:'Touchdown!',text:'Touchdown! The crowd goes wild.'};
+      if(t==='good') return chance(b) ? {us:7,big:'Touchdown!',text:'Your star player breaks a tackle. Touchdown!'} : {us:3,text:'Drive stalls. Field goal is good. +3'};
+      return {us:0,text:'Intercepted! Your drive is over.'}; },
+    D(t,p){ if(t==='fast') return {them:0,big:'Sack!',text:'SACK! Their drive is dead.'};
+      if(t==='good') return chance(p) ? {them:3,text:'They kick a field goal.'} : {them:0,text:'Defense holds on third down!'};
+      return {them:7,text:'They run it in for a touchdown.'}; }},
+  basketball:{name:'Basketball', periods:4, plays:4, per:i=>'Q'+(i+1), ball:'#E07A2E',
+    O(t,b){ if(t==='fast') return {us:3,big:'Splash!',text:'Three-pointer from the corner!'};
+      if(t==='good') return chance(b) ? {us:3,text:'Your star hits a deep three!'} : {us:2,text:'Smooth layup. Two points.'};
+      return {us:0,text:'Brick! They grab the rebound.'}; },
+    D(t,p){ if(t==='fast') return {them:0,big:'Blocked!',text:'REJECTED! Get that out of here.'};
+      if(t==='good') return chance(p) ? {them:2,text:'They hit a tough jumper.'} : {them:0,text:'Shot clock violation. Great defense!'};
+      return {them:3,text:'They drain a three.'}; }},
+  baseball:{name:'Baseball', periods:9, plays:2, per:i=>'Inn '+(i+1), ball:'#F4F1E8',
+    O(t,b){ if(t==='fast'){ const r = chance(.5)?2:1; return {us:r,big:'Home run!',text:r===2?'Two-run homer over the wall!':'Solo shot! Home run!'}; }
+      if(t==='good') return chance(.45+b) ? {us:1,text:'RBI single! A run scores.'} : {us:0,text:'Base hit, but the runner is stranded.'};
+      return {us:0,text:'Strike three. Side retired.'}; },
+    D(t,p){ if(t==='fast') return {them:0,big:'Strikeout!',text:'Strike three! 1-2-3 inning.'};
+      if(t==='good') return chance(p*.6) ? {them:1,text:'They scratch out a run.'} : {them:0,text:'Double play! Inning over.'};
+      return {them:chance(.5)?2:1,text:'They crush one. Home run.'}; }},
+  soccer:{name:'Soccer', periods:2, plays:8, per:i=>i?'2nd Half':'1st Half', ball:'#F4F4F4',
+    O(t,b){ if(t==='fast') return {us:1,big:'Goal!',text:'Top corner! What a strike!'};
+      if(t==='good') return chance(.35+b) ? {us:1,big:'Goal!',text:'Goal off the rebound!'} : {us:0,text:'Great shot, but the keeper saves it.'};
+      return {us:0,text:'Offside! Attack over.'}; },
+    D(t,p){ if(t==='fast') return {them:0,text:'Clean slide tackle. Ball won back!'};
+      if(t==='good') return chance(p*.35) ? {them:1,text:'They score from a corner kick.'} : {them:0,text:'Your keeper makes a diving save!'};
+      return chance(.65) ? {them:1,text:'They break through and score.'} : {them:0,text:'Their shot rings off the post. Phew!'}; }},
+  hockey:{name:'Hockey', periods:3, plays:6, per:i=>'P'+(i+1), ball:'#111111',
+    O(t,b){ if(t==='fast') return {us:1,big:'Goal!',text:'Top shelf! The lamp is lit!'};
+      if(t==='good') return chance(.35+b) ? {us:1,big:'Goal!',text:'Scores on the rebound!'} : {us:0,text:'Shot stopped by the goalie.'};
+      return {us:0,text:'Icing. Faceoff in your zone.'}; },
+    D(t,p){ if(t==='fast') return {them:0,big:'Big hit!',text:'Huge check! The puck is yours.'};
+      if(t==='good') return chance(p*.35) ? {them:1,text:'They sneak one in on the power play.'} : {them:0,text:'Glove save by your goalie!'};
+      return chance(.65) ? {them:1,text:'They score on a breakaway.'} : {them:0,text:'Their shot goes wide. Phew!'}; }},
+};
+const LEAGUES = [
+  {name:'Rookie League', wins:3, gate:20, win:10, p:.30},
+  {name:'Minor League',  wins:4, gate:30, win:15, p:.45},
+  {name:'Pro League',    wins:5, gate:45, win:20, p:.60},
+  {name:'Legends League',wins:5, gate:60, win:25, p:.75},
+];
+const UPGRADES = [
+  {id:'off',  name:'Star Player',       desc:'More big plays when you have the ball.', costs:[80,160,260]},
+  {id:'def',  name:'Defensive Coach',   desc:'The other team scores less often.',      costs:[80,160,260]},
+  {id:'stad', name:'Stadium Expansion', desc:'More seats: +$10M in ticket sales every game.', costs:[100,200,320]},
+];
+const COLORS = ['#D7263D','#F46036','#F5B700','#2BA84A','#0FA3B1','#2E5EAA','#6C3FB5','#E84A8A','#A7B4C2','#7A4A2A'];
+const CITIES = ['Riverton','Lakeside','Maple Falls','Stone Creek','Harbor City','Pine Ridge','Iron Valley','Sunset Bay','Granite Peak','Eagle Point','Red Rock','Silver Lake','Thunder Bay','Oak Hollow','Cedar Springs','Brookfield'];
+const MASCOTS = ['Hawks','Bulldogs','Thunder','Grizzlies','Rockets','Vipers','Storm','Titans','Comets','Wolves','Pirates','Knights','Blaze','Cyclones','Falcons','Sharks','Mustangs','Raptors'];
+const SHARKS = [
+  {name:'Big Money Mo',     color:'#FFB627'},
+  {name:'Rita Riches',      color:'#E84A8A'},
+  {name:'Captain Cashflow', color:'#3DDC84'},
+  {name:'The Closer',       color:'#9CC4FF'},
+];
+
+/* ================= fact engine ================= */
+const fkey = (a,b) => a<=b ? a+'x'+b : b+'x'+a;
+function maxFactor(){ return S.settings.range==='auto' ? S.unlocked : +S.settings.range; }
+function level(rec){
+  if(!rec || !rec.n) return 0;
+  const acc = rec.c/rec.n, avg = rec.c ? rec.t/rec.c : 99999;
+  if(rec.n>=3 && acc>=.9 && avg<=3000) return 4;
+  if(rec.n>=2 && acc>=.8) return 3;
+  if(acc>=.5) return 2;
+  return 1;
+}
+function weight(a,b){
+  const r = S.facts[fkey(a,b)];
+  let w;
+  if(!r || !r.n) w = 2.5;
+  else {
+    const acc = r.c/r.n, avg = r.c ? r.t/r.c : 8000;
+    w = .6 + (1-acc)*5 + (avg>5000?2.2:avg>3500?1.2:avg>2500?.5:0) + ((r.s||0)<2?.8:0);
+  }
+  const lo = Math.min(a,b), hi = Math.max(a,b);
+  if(lo===1) w *= .15; else if(lo===2) w *= .6;
+  if(hi===10 && lo!==10) w *= .5;
+  return w;
+}
+let recent = [];
+function pickFact(){
+  const m = maxFactor(), pool = [];
+  let total = 0;
+  for(let a=1;a<=m;a++) for(let b=a;b<=m;b++){
+    if(recent.includes(fkey(a,b))) continue;
+    const w = weight(a,b); total += w; pool.push([a,b,w]);
+  }
+  let x = Math.random()*total, f = pool[pool.length-1];
+  for(const p of pool){ x -= p[2]; if(x<=0){ f = p; break; } }
+  recent.push(fkey(f[0],f[1])); if(recent.length>4) recent.shift();
+  return chance(.5) ? {a:f[0],b:f[1]} : {a:f[1],b:f[0]};
+}
+function record(a,b,ok,ms){
+  const k = fkey(a,b), r = S.facts[k] || (S.facts[k] = {n:0,c:0,t:0,s:0});
+  r.n++; if(ok){ r.c++; r.t += Math.min(ms,15000); r.s = (r.s||0)+1; } else r.s = 0;
+  S.stats.answered++; if(ok) S.stats.correct++;
+  S.stats.days[today()] = (S.stats.days[today()]||0)+1;
+}
+function checkUnlock(){
+  const share = pairs => pairs.filter(([a,b]) => level(S.facts[fkey(a,b)])>=3).length / pairs.length;
+  const base = []; for(let a=2;a<=10;a++) for(let b=a;b<=10;b++) base.push([a,b]);
+  const elevens = []; for(let a=2;a<=11;a++) elevens.push([a,11]);
+  let u = S.unlocked;
+  if(u<11 && share(base)>=.75) u = 11;
+  if(u===11 && share(elevens)>=.75) u = 12;
+  if(u>S.unlocked){ S.unlocked = u; save(); if(S.settings.range==='auto') toast(`New level unlocked: ×${u} facts are now in play!`); }
+}
+
+/* ================= sound ================= */
+let AC;
+function tone(freqs, dur=.12, type='triangle', gap=.07, vol=.14){
+  if(!S.settings.sound) return;
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    const t0 = AC.currentTime;
+    freqs.forEach((f,i)=>{ const o=AC.createOscillator(), g=AC.createGain(), s=t0+i*gap;
+      o.type=type; o.frequency.value=f; g.gain.setValueAtTime(.0001,s); g.gain.exponentialRampToValueAtTime(vol,s+.01);
+      g.gain.exponentialRampToValueAtTime(.0001,s+dur); o.connect(g); g.connect(AC.destination); o.start(s); o.stop(s+dur+.03); });
+  }catch(e){}
+}
+const SFX = {
+  good:()=>tone([660,880]), fast:()=>tone([523,659,784,1046],.14),
+  score:()=>tone([392,523,659,784,1046],.24,'sawtooth',.09,.07),
+  bad:()=>tone([196,147],.28,'square',.14,.05), cash:()=>tone([1318,1568,2093],.1,'sine',.06,.09),
+};
+
+/* ================= UI plumbing ================= */
+function toast(msg){
+  const t = document.getElementById('toast'), d = document.createElement('div');
+  d.textContent = msg; t.appendChild(d); setTimeout(()=>d.remove(), 3200);
+}
+function bigBanner(text){
+  const d = document.createElement('div'); d.className='banner-fx'; d.innerHTML = `<span>${esc(text)}</span>`;
+  document.body.appendChild(d); setTimeout(()=>d.remove(), 1350);
+}
+const Pad = { on:false, ans:0, val:'', cb:null, box:'ansbox',
+  start(ans, cb, box){ this.on=true; this.ans=ans; this.val=''; this.cb=cb; this.box=box||'ansbox'; this.draw(); },
+  press(k){
+    if(!this.on) return;
+    if(k==='del') this.val = this.val.slice(0,-1);
+    else if(k==='ok'){ if(this.val) this.fire(); return; }
+    else if(this.val.length<3 && !(this.val==='' && k==='0')) this.val += k;
+    this.draw();
+    if(k!=='del' && this.val.length>=String(this.ans).length) this.fire();
+  },
+  fire(){ const v=this.val; this.on=false; this.cb && this.cb(v); },
+  draw(){ const el = document.getElementById(this.box); if(!el) return; el.className='ansbox'+(this.val?'':' empty'); el.textContent = this.val || '?'; }
+};
+const padHTML = () => `<div class="pad">${['1','2','3','4','5','6','7','8','9'].map(k=>`<button class="key" data-k="${k}">${k}</button>`).join('')}
+  <button class="key alt" data-k="del" aria-label="Delete">⌫</button><button class="key" data-k="0">0</button><button class="key alt ok" data-k="ok" aria-label="Enter">✓</button></div>`;
+document.addEventListener('pointerdown', e => { const b = e.target.closest('[data-k]'); if(b){ e.preventDefault(); Pad.press(b.dataset.k); } });
+document.addEventListener('click', e => { const b = e.target.closest('[data-k]'); if(b && e.detail===0) Pad.press(b.dataset.k); });
+document.addEventListener('keydown', e => {
+  if(!Pad.on || e.target.matches('input')) return;
+  if(/^[0-9]$/.test(e.key)){ Pad.press(e.key); e.preventDefault(); }
+  else if(e.key==='Backspace'){ Pad.press('del'); e.preventDefault(); }
+  else if(e.key==='Enter'){ Pad.press('ok'); e.preventDefault(); }
+});
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act]'); if(!t || t.disabled) return;
+  const fn = ACT[t.dataset.act]; if(fn) fn(t.dataset, t);
+});
+
+let view = 'home', cur = null, draft = null;
+const frById = id => S.franchises.find(f=>f.id===id);
+function go(v, id){ view = v; if(id!==undefined) cur = id; Pad.on = false; render(); window.scrollTo(0,0); }
+function render(){
+  const f = { home:vHome, new:vNew, hub:vHub, post:vPost, shark:vShark, coach:vCoach, train:vTrain, playbook:vPlaybook }[view];
+  if(f) app.innerHTML = f();
+  if(view==='new') bindNew();
+}
+const ACT = {};
+
+/* ================= HOME ================= */
+function vHome(){
+  const acc = S.stats.answered ? Math.round(S.stats.correct/S.stats.answered*100) : 0;
+  const cards = S.franchises.map(f=>`
+    <button class="frcard" style="--c:${f.color}" data-act="open" data-id="${f.id}">
+      <div class="top">${ICONS[f.sport]}<div class="city">${esc(f.city)}</div><div class="name display">${esc(f.name)}</div></div>
+      <div class="meta"><span>${LEAGUES[f.league].name}</span><span class="tnum">${f.w}-${f.l}${f.t?'-'+f.t:''}</span><span class="tnum ${f.cash<0?'minus':''}">${money(f.cash)}</span></div>
+    </button>`).join('');
+  return `
+  <header class="masthead">
+    <div class="eyebrow">Own the team. Run the business. Win it all.</div>
+    <h1 class="display">Franchise <span>Tycoon</span></h1>
+    ${S.stats.answered ? `<div class="statstrip">
+      <div><b class="tnum">${S.stats.answered.toLocaleString()}</b><span class="muted">plays made</span></div>
+      <div><b class="tnum">${acc}%</b><span class="muted">accuracy</span></div>
+      <div><b class="tnum">${S.stats.bestStreak}</b><span class="muted">best streak</span></div>
+      <div><b>×1–${maxFactor()}</b><span class="muted">facts in play</span></div></div>` : `<p class="muted" style="max-width:52ch;margin:4px 0 0">Start a franchise in any sport. Win games by making fast plays, earn money, upgrade your team, and decide if a shark's deal is worth taking.</p>`}
+  </header>
+  <div class="spread" style="margin-bottom:12px"><h2 class="display" style="font-size:34px">Your franchises</h2></div>
+  <div class="frgrid">${cards}
+    <button class="frcard new" data-act="newFr"><span class="display">+ New franchise</span><span>Pick a sport and build a team</span></button>
+  </div>
+  <div style="margin-top:40px;text-align:center"><button class="link" data-act="coach">Coach's Office (for parents)</button>
+    ${Cloud.code ? `<div class="muted" data-cloud style="font-size:13px">${cloudLine()}</div>` : ''}</div>`;
+}
+ACT.open = d => go('hub', d.id);
+ACT.newFr = () => { draft = {sport:'football', color:pick(COLORS), city:'', name:''}; go('new'); };
+ACT.coach = () => go('coach');
+ACT.home = () => go('home');
+
+/* ================= NEW FRANCHISE ================= */
+function vNew(){
+  const d = draft;
+  return `
+  <div class="gamebar"><button class="link" data-act="home">← All franchises</button></div>
+  <div class="stack">
+    <h1 class="display" style="font-size:clamp(48px,9vw,72px)">Start a franchise</h1>
+    <section class="stack"><div class="eyebrow">1 · Choose your sport</div>
+      <div class="tiles">${Object.entries(SPORTS).map(([k,s])=>`<button class="tile" data-act="pickSport" data-v="${k}" aria-pressed="${d.sport===k}">${ICONS[k]}<span class="display">${s.name}</span></button>`).join('')}</div>
+    </section>
+    <section class="stack"><div class="eyebrow">2 · Name your team</div>
+      <div class="row" style="align-items:end">
+        <label class="fld">City<input class="txt" id="city" maxlength="16" value="${esc(d.city)}" placeholder="e.g. Chicago" autocomplete="off"></label>
+        <label class="fld">Team name<input class="txt" id="tname" maxlength="16" value="${esc(d.name)}" placeholder="e.g. Thunder" autocomplete="off"></label>
+        <button class="btn" data-act="surprise">Surprise me</button>
+      </div>
+    </section>
+    <section class="stack"><div class="eyebrow">3 · Team color</div>
+      <div class="swatches">${COLORS.map(c=>`<button class="swatch" style="--c:${c}" data-act="pickColor" data-v="${c}" aria-pressed="${d.color===c}" aria-label="Color ${c}"></button>`).join('')}</div>
+    </section>
+    <div class="preview" id="pv" style="--c:${d.color}">${ICONS[d.sport]}<div><div class="eyebrow" style="color:rgba(255,255,255,.8)" id="pvCity">${esc(d.city||'Your city')}</div><div class="name display" id="pvName">${esc(d.name||'Team name')}</div></div></div>
+    <div><button class="btn primary big" data-act="create">Found the franchise</button></div>
+  </div>`;
+}
+function bindNew(){
+  const c = document.getElementById('city'), n = document.getElementById('tname');
+  c.oninput = () => { draft.city = c.value; document.getElementById('pvCity').textContent = c.value || 'Your city'; };
+  n.oninput = () => { draft.name = n.value; document.getElementById('pvName').textContent = n.value || 'Team name'; };
+}
+ACT.pickSport = d => { draft.sport = d.v; render(); };
+ACT.pickColor = d => { draft.color = d.v; render(); };
+ACT.surprise = () => { draft.city = pick(CITIES); draft.name = pick(MASCOTS); render(); };
+ACT.create = () => {
+  const city = draft.city.trim(), name = draft.name.trim();
+  if(!city || !name){ toast('Give your team a city and a name first.'); return; }
+  const f = {id:'f'+Date.now().toString(36), sport:draft.sport, city, name, color:draft.color,
+    cash:60, w:0, l:0, t:0, league:0, lw:0, games:0, up:{off:0,def:0,stad:0}, trophies:[], deals:[], shark:null, created:Date.now()};
+  S.franchises.push(f); save(); toast(`The ${city} ${name} are official!`); go('hub', f.id);
+};
+
+/* ================= HUB ================= */
+function vHub(){
+  const f = frById(cur); if(!f) return vHome();
+  const L = LEAGUES[f.league];
+  const pips = Array.from({length:L.wins},(_,i)=>`<span class="pip ${i<f.lw?'on':''}"></span>`).join('');
+  const nextL = f.league<3 ? `${L.wins - f.lw} more win${L.wins-f.lw===1?'':'s'} to move up to ${LEAGUES[f.league+1].name}` : `${L.wins - f.lw} more win${L.wins-f.lw===1?'':'s'} for the Legends Championship`;
+  const ups = UPGRADES.map(u=>{ const lv = f.up[u.id], cost = u.costs[lv];
+    return `<div class="upg"><div class="spread"><h3 class="display">${u.name}</h3><div class="lv">${u.costs.map((_,i)=>`<i class="${i<lv?'on':''}"></i>`).join('')}</div></div>
+      <div class="muted">${u.desc}</div>
+      ${lv>=u.costs.length ? `<div style="font-weight:700;color:var(--good)">Maxed out</div>` :
+        `<button class="btn ${f.cash>=cost?'primary':''}" data-act="buy" data-u="${u.id}" ${f.cash>=cost?'':'disabled'}>Buy level ${lv+1} · ${money(cost)}</button>`}</div>`; }).join('');
+  const deals = f.deals.map(d=>`<div class="deal"><span>${esc(d.shark)}: ${d.kind==='loan'?'you pay':'you get'} ${money(d.per)} a game</span><span class="muted">${d.left} game${d.left===1?'':'s'} left</span></div>`).join('');
+  return `
+  <div class="gamebar"><button class="link" data-act="home">← All franchises</button></div>
+  <div class="stack">
+    <div class="banner" style="--c:${f.color}">${ICONS[f.sport]}
+      <div class="city">${esc(f.city)} · ${SPORTS[f.sport].name}</div>
+      <div class="name display">${esc(f.name)}</div>
+      <div style="font-weight:700;margin-top:6px">${L.name}</div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><span class="eyebrow">Team bank</span><b class="tnum ${f.cash<0?'neg':''}">${money(f.cash)}</b></div>
+      <div class="kpi"><span class="eyebrow">Record</span><b class="tnum">${f.w}-${f.l}${f.t?'-'+f.t:''}</b></div>
+      <div class="kpi"><span class="eyebrow">Season</span><div class="pips">${pips}</div><div class="muted" style="font-size:14px;margin-top:6px">${nextL}</div></div>
+    </div>
+    ${f.shark ? `<div class="sharkcard">${FIN}<div style="flex:1 1 220px"><div class="display" style="font-size:30px">A shark wants to make a deal</div><div class="muted">${esc(f.shark.name)} is waiting in your office.</div></div><button class="btn primary" data-act="shark">Hear the pitch</button></div>` : ''}
+    ${f.needsTraining
+      ? `<div class="traincard"><div style="flex:1 1 240px"><div class="display" style="font-size:32px">Training Camp</div><div class="muted">After a loss, the team hits the practice field before the next game. Finish training to earn a <b>$15M</b> bonus.</div></div><button class="btn primary big" data-act="train">Start training</button></div>`
+      : `<div class="playrow"><button class="btn primary big" data-act="play">Play game</button><span class="muted">About 3 minutes · ${SPORTS[f.sport].periods*SPORTS[f.sport].plays} plays</span><button class="btn" data-act="playbook">Playbook</button></div>`}
+    <section class="stack" style="margin-top:12px"><h2 class="display" style="font-size:34px">Front office</h2><div class="upgrades">${ups}</div></section>
+    ${deals ? `<section class="panel"><div class="eyebrow" style="margin-bottom:8px">Shark deals</div>${deals}</section>` : ''}
+    <section class="stack"><h2 class="display" style="font-size:34px">Trophy case</h2>
+      ${f.trophies.length ? `<div class="trophies">${f.trophies.map(t=>`<div class="trophy">${TROPHY(t.gold?'#FFB627':'#C9D3DD')}${esc(t.name)}</div>`).join('')}</div>` : `<p class="muted" style="margin:0">Empty so far. Win ${L.wins} games in the ${L.name} to earn your first trophy.</p>`}
+    </section>
+    <div style="margin-top:24px" id="delzone"><button class="link" data-act="askDel">Retire this franchise</button></div>
+  </div>`;
+}
+ACT.buy = d => {
+  const f = frById(cur), u = UPGRADES.find(x=>x.id===d.u), cost = u.costs[f.up[u.id]];
+  if(f.cash < cost) return;
+  f.cash -= cost; f.up[u.id]++; save(); SFX.cash(); toast(`${u.name} upgraded to level ${f.up[u.id]}!`); render();
+};
+ACT.askDel = () => { document.getElementById('delzone').innerHTML = `<div class="row"><span>Retire this team for good? All its money and trophies go away.</span><button class="btn danger" data-act="del">Yes, retire it</button><button class="btn" data-act="open" data-id="${cur}">Keep it</button></div>`; };
+ACT.del = () => { S.franchises = S.franchises.filter(f=>f.id!==cur); save(); go('home'); };
+
+/* ================= GAME ================= */
+let G = null, raf = 0;
+ACT.play = () => {
+  const f = frById(cur), sp = SPORTS[f.sport];
+  let oc = pick(CITIES); while(oc===f.city) oc = pick(CITIES);
+  let oColor = pick(COLORS); while(oColor===f.color) oColor = pick(COLORS);
+  const plays = []; for(let p=0;p<sp.periods;p++) for(let i=0;i<sp.plays;i++) plays.push({per:p, side: i%2===0?'O':'D'});
+  G = {f, sp, opp:{city:oc, name:pick(MASCOTS), color:oColor}, plays, i:0, us:0, them:0, streak:0, best:0, correct:0, fast:0, bonus:0, run:0, miss:0, retry:[], missed:[], q:null};
+  view = 'game'; Pad.on = false;
+  app.innerHTML = vGame(); window.scrollTo(0,0);
+  setCall(`${f.city} vs ${G.opp.city}. You have the ball first. Answer fast for big plays!`, '');
+  setTimeout(nextPlay, 1400);
+};
+const abbr = s => s.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase() || 'YOU';
+function vGame(){
+  const f = G.f;
+  return `
+  <div class="gamebar"><button class="link" data-act="askQuit" id="quitBtn">Leave game</button><span class="muted" style="font-weight:600">${LEAGUES[f.league].name} · Game ${f.games+1}</span>
+    <button class="link" data-act="sound" id="sndBtn">${S.settings.sound?'Sound on':'Sound off'}</button></div>
+  <div class="game">
+    <section>
+      <div class="board">
+        <div class="tm" style="--c:${f.color}"><div class="abbr">${esc(abbr(f.city))}</div><div class="sc tnum" id="usSc">0</div></div>
+        <div class="mid"><div class="per" id="per">${G.sp.per(0)}</div><div class="pn" id="pn">Play 1 of ${G.plays.length}</div></div>
+        <div class="tm opp" style="--c:${G.opp.color}"><div class="abbr">${esc(abbr(G.opp.city))}</div><div class="sc tnum" id="themSc">0</div></div>
+      </div>
+      <div class="field s-${f.sport}" style="--us:${f.color};--them:${G.opp.color}">
+        <div class="end l"><span>${esc(f.name)}</span></div><div class="end r"><span>${esc(G.opp.name)}</span></div>
+        <svg class="ball" id="ball" viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="${G.sp.ball}" stroke="rgba(0,0,0,.4)" stroke-width="2"/></svg>
+      </div>
+      <div class="call" id="call"></div>
+    </section>
+    <section class="qpanel">
+      <div class="side"><span class="chip o" id="sideChip">Offense</span><span class="row" style="gap:14px"><span class="streak" id="streak"></span><span class="muted tnum" id="clock" style="font-weight:700"></span></span></div>
+      <div class="q tnum" id="q">&nbsp;</div>
+      <div class="ansbox empty" id="ansbox">?</div>
+      <div class="timer"><i id="tbar"></i></div>
+      ${padHTML()}
+    </section>
+  </div>`;
+}
+function setCall(text, cls){ const c = document.getElementById('call'); if(c){ c.textContent = text; c.className = 'call ' + (cls||''); } }
+function moveBall(pct){ const b = document.getElementById('ball'); if(b) b.style.left = pct+'%'; }
+function nextPlay(){
+  if(view!=='game') return;
+  if(G.i >= G.plays.length) return endGame();
+  const play = G.plays[G.i];
+  document.getElementById('per').textContent = G.sp.per(play.per);
+  document.getElementById('pn').textContent = `Play ${G.i+1} of ${G.plays.length}`;
+  const chip = document.getElementById('sideChip');
+  chip.className = 'chip ' + (play.side==='O'?'o':'d');
+  chip.textContent = play.side==='O' ? 'Offense · answer to score' : 'Defense · answer to stop them';
+  moveBall(50);
+  // A missed fact comes back a few plays later so he gets another shot at it.
+  const due = G.retry.findIndex(r => r.due <= G.i);
+  const {a,b} = due >= 0 ? G.retry.splice(due,1)[0] : pickFact();
+  const isRetry = due >= 0;
+  const limit = clockSecs()*1000, fastMs = limit*.4, bar = document.getElementById('tbar');
+  G.q = {a, b, ans:a*b, t0:performance.now(), side:play.side, limit, retry:isRetry};
+  document.getElementById('q').innerHTML = `${a} <small>×</small> ${b}`;
+  document.getElementById('clock').textContent = `⏱ ${clockSecs()}s`;
+  Pad.start(a*b, v => answer(v, false));
+  cancelAnimationFrame(raf);
+  const tick = () => {
+    if(!G.q || G.q.done) return;
+    const el = performance.now() - G.q.t0, frac = Math.max(0, 1 - el/limit);
+    bar.style.transform = `scaleX(${frac})`;
+    bar.style.background = el<=fastMs ? 'var(--good)' : frac>.25 ? 'var(--amber)' : 'var(--bad)';
+    if(el >= limit){ Pad.on = false; answer('', true); return; }
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+}
+function answer(v, timedOut){
+  const q = G.q; if(!q || q.done) return; q.done = true; cancelAnimationFrame(raf);
+  const ms = performance.now() - q.t0, limit = q.limit;
+  const ok = !timedOut && +v === q.ans && ms <= limit;
+  const tier = ok ? (ms <= limit*.4 ? 'fast' : 'good') : 'miss';
+  record(q.a, q.b, ok, ms);
+  if(!ok) G.missed.push([q.a, q.b]);
+  const f = G.f;
+  const res = q.side==='O' ? G.sp.O(tier, .12*f.up.off) : G.sp.D(tier, Math.max(.08, LEAGUES[f.league].p - .1*f.up.def));
+  const us = res.us||0, them = res.them||0;
+  G.us += us; G.them += them;
+  if(ok){ G.correct++; if(tier==='fast') G.fast++; G.streak++; G.best = Math.max(G.best, G.streak); }
+  else G.streak = 0;
+  S.stats.bestStreak = Math.max(S.stats.bestStreak, G.best);
+  const box = document.getElementById('ansbox');
+  if(ok){ box.className = 'ansbox right'; box.textContent = (tier==='fast'?'⚡ ':'✓ ') + q.ans; }
+  else { box.className = 'ansbox wrong'; box.textContent = timedOut ? `Time! ${q.a} × ${q.b} = ${q.ans}` : `${q.a} × ${q.b} = ${q.ans}`; }
+  if(us){ const e = document.getElementById('usSc'); e.textContent = G.us; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
+  if(them){ const e = document.getElementById('themSc'); e.textContent = G.them; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
+  if(q.side==='O') moveBall(us ? 91 : ok ? 72 : 42); else moveBall(them ? 9 : ok ? 58 : 28);
+  const prefix = (ok && q.retry ? 'LOCKED IN! ' : '') + (tier==='fast' ? 'FAST! ' : '');
+  setCall(prefix + res.text, us || (q.side==='D' && !them) ? 'good' : (them || tier==='miss') ? 'bad' : '');
+  if(res.big && q.side==='O' && us){ bigBanner(res.big); SFX.score(); }
+  else if(res.big && tier==='fast'){ bigBanner(res.big); SFX.fast(); }
+  else if(tier==='fast') SFX.fast(); else if(ok) SFX.good(); else SFX.bad();
+  const st = document.getElementById('streak');
+  st.textContent = G.streak>=3 ? `🔥 ${G.streak} in a row` : '';
+  if(ok && G.streak>0 && G.streak%5===0){ G.bonus += 5; toast(`${G.streak} in a row! +$5M hot-streak bonus`); }
+  if(S.settings.timer==='auto'){
+    if(ok){ G.run++; if(G.run>=3 && S.pace<PACE.length-1){ S.pace++; G.run = 0; G.miss = 0; toast(`You're heating up! Clock is now ${PACE[S.pace]} seconds.`); } }
+    else { G.run = 0; G.miss++; if(G.miss>=2 && S.pace>0){ S.pace--; G.run = 0; G.miss = 0; toast(`Clock slowed to ${PACE[S.pace]} seconds. You've got this!`); } }
+  }
+  G.i++;
+  if(tier==='miss'){
+    G.retry.push({a:q.a, b:q.b, due:G.i+4});
+    setTimeout(() => lockIn(q.a, q.b, () => setTimeout(nextPlay, 500)), 900);
+  } else setTimeout(nextPlay, res.big ? 1600 : 1100);
+}
+
+// After a miss: pause the game, show the fact slowly, then have him type it himself.
+function say(text){
+  if(!S.settings.sound || !window.speechSynthesis) return;
+  try { const u = new SpeechSynthesisUtterance(text); u.rate = .85; speechSynthesis.speak(u); } catch(e){}
+}
+function lockIn(a, b, done){
+  if(view!=='game') return;
+  const ans = a*b, el = document.createElement('div');
+  el.className = 'lockin';
+  el.innerHTML = `<div class="li-card" role="dialog" aria-modal="true" aria-label="Learn this fact">
+    <div class="eyebrow">Let's lock this one in</div>
+    <div class="li-fact tnum"><span class="li-q">${a} × ${b} =</span><span class="li-ans" id="liAns">${ans}</span></div>
+    <div class="li-type" id="liType" hidden>
+      <div style="font-weight:700;font-size:19px">Now you type it</div>
+      <div class="ansbox empty" id="liBox">?</div>
+      ${padHTML()}
+    </div></div>`;
+  document.body.appendChild(el);
+  tone([392,523],.3,'sine',.25,.08);
+  say(`${a} times ${b}`);
+  setTimeout(() => { const s = document.getElementById('liAns'); if(s) s.classList.add('show'); say(String(ans)); tone([523,659,784],.35,'sine',.12,.08); }, 1700);
+  setTimeout(() => {
+    const t = document.getElementById('liType'); if(!t) return;
+    t.hidden = false;
+    const ask = () => Pad.start(ans, v => {
+      const box = document.getElementById('liBox');
+      if(+v === ans){
+        box.className = 'ansbox right'; box.textContent = '✓ ' + ans; SFX.good();
+        setTimeout(() => { el.remove(); done(); }, 700);
+      } else {
+        box.className = 'ansbox wrong shake'; box.textContent = v;
+        setTimeout(ask, 700);
+      }
+    }, 'liBox');
+    ask();
+  }, 3200);
+}
+ACT.askQuit = (d, el) => {
+  el.outerHTML = `<span class="row" id="quitBtn" style="gap:8px"><span>Leave? This game won't count.</span><button class="btn danger" data-act="quit" style="min-height:40px;padding:8px 14px">Leave</button><button class="btn" data-act="stay" style="min-height:40px;padding:8px 14px">Keep playing</button></span>`;
+};
+ACT.stay = () => { const el = document.getElementById('quitBtn'); if(el) el.outerHTML = `<button class="link" data-act="askQuit" id="quitBtn">Leave game</button>`; };
+ACT.quit = () => { cancelAnimationFrame(raf); document.querySelectorAll('.lockin').forEach(e=>e.remove()); if(G) G.q = null; save(); go('hub', G.f.id); };
+ACT.sound = (d, el) => { S.settings.sound = !S.settings.sound; save(); el.textContent = S.settings.sound?'Sound on':'Sound off'; };
+
+/* ================= POSTGAME ================= */
+const BIZ = [
+  (a,b)=>`Your TV deal pays <b>$${b} million</b> for every nationally televised game. You have <b>${a}</b> TV games this season. How many millions is that?`,
+  (a,b)=>`<b>${a}</b> companies bought ads on your scoreboard for <b>$${b} million</b> each. How many millions did the ads bring in?`,
+  (a,b)=>`A bank wants its name on your stadium. They'll pay <b>$${b} million</b> a year for <b>${a}</b> years. How many millions is the whole naming-rights deal?`,
+  (a,b)=>`You rented your stadium for <b>${a}</b> concerts at <b>$${b} million</b> each. How many millions did the concerts make?`,
+  (a,b)=>`Your <b>${a}</b> team stores each made <b>$${b} million</b> in jersey sales this season. How many millions in total?`,
+  (a,b)=>`A streaming service will pay <b>$${b} million</b> a season to show your games for <b>${a}</b> seasons. How many millions is the deal?`,
+  (a,b)=>`You sold <b>${a}</b> luxury suites for the playoffs at <b>$${b} million</b> each. How many millions did the suites bring in?`,
+  (a,b)=>`<b>${a}</b> sponsors signed on this year, each paying <b>$${b} million</b>. How many millions did sponsors pay?`,
+];
+let P = null;
+function endGame(){
+  const f = G.f, L = LEAGUES[f.league];
+  const r = G.us>G.them ? 'W' : G.us<G.them ? 'L' : 'T';
+  f.games++; if(r==='W'){ f.w++; f.lw++; } else if(r==='L') f.l++; else f.t++;
+  const lines = [];
+  // Every game earns game-day revenue; winning adds extra merch and sponsor money.
+  lines.push(['Game-day revenue (tickets, TV, food)', L.gate]);
+  if(r==='W') lines.push(['Win bonus (jerseys & sponsors)', L.win]);
+  if(r==='T') lines.push(['Tie bonus', Math.round(L.win/2)]);
+  if(f.up.stad) lines.push([`Stadium expansion (level ${f.up.stad})`, 10*f.up.stad]);
+  if(G.bonus) lines.push(['Hot-streak bonuses', G.bonus]);
+  f.deals.forEach(d=>{ lines.push([d.kind==='loan' ? `Payment to ${d.shark}` : `Payout from ${d.shark}`, d.kind==='loan' ? -d.per : d.per]); d.left--; });
+  f.deals = f.deals.filter(d=>d.left>0);
+  lines.forEach(l=> f.cash += l[1]);
+  let promo = null;
+  if(r==='W' && f.lw >= L.wins){
+    f.lw = 0;
+    if(f.league < 3){ f.trophies.push({name:`${L.name} Champs`}); promo = `Promoted to the ${LEAGUES[f.league+1].name}!`; f.league++; }
+    else { f.trophies.push({name:'Legends Champions', gold:true}); promo = 'LEGENDS CHAMPIONS!'; }
+  }
+  if(!f.shark && f.games % 3 === 0) f.shark = makeShark(f);
+  if(r==='L'){ f.needsTraining = true; f.trainFact = coachPick(G.missed); }
+  save(); checkUnlock();
+  const qs = [0,1].map(()=>{ let f = pickFact(), tries = 0; while(Math.min(f.a,f.b) < 2 && tries++ < 20) f = pickFact(); const {a,b} = f; const lo=Math.min(a,b), hi=Math.max(a,b); return {a:hi>=3?lo:a, b:hi>=3?hi:b, tpl:pick(BIZ)}; });
+  P = {r, us:G.us, them:G.them, lines, promo, qs, qi:0, biz:[], fr:f.id};
+  view = 'post'; cur = f.id; render(); window.scrollTo(0,0);
+  if(r==='W') SFX.score();
+  if(promo) setTimeout(()=>bigBanner(promo.includes('LEGENDS')?'Champions!':'Promoted!'), 400);
+  startBiz();
+}
+function vPost(){
+  const f = frById(P.fr);
+  const word = {W:'Victory',L:'Tough loss',T:'Tie game'}[P.r];
+  const bizDone = P.qi >= P.qs.length;
+  const bizTotal = P.biz.reduce((s,x)=>s+x.earned,0);
+  const total = P.lines.reduce((s,l)=>s+l[1],0) + bizTotal;
+  return `
+  <div class="stack">
+    <div class="final"><div class="eyebrow">Final · ${esc(f.city)} ${esc(f.name)} vs ${esc(G.opp.city)} ${esc(G.opp.name)}</div>
+      <div class="res display ${P.r}">${word}</div>
+      <div class="display tnum" style="font-size:56px">${P.us} – ${P.them}</div>
+      <div class="muted" style="font-weight:600">${G.correct} of ${G.plays.length} plays right · ${G.fast} lightning-fast · best streak ${G.best}</div>
+      ${P.promo ? `<div class="display" style="font-size:40px;color:var(--amber);margin-top:8px">${esc(P.promo)}</div>` : ''}
+    </div>
+    <div class="twocol">
+      <section class="panel stack">
+        ${bizDone ? `<div class="eyebrow">Box office</div><div class="display" style="font-size:40px">Books closed</div><p class="muted" style="margin:0">Nice work, boss. Your accountant is impressed.</p>
+            ${f.needsTraining
+              ? `<p style="margin:0;font-weight:600">Tough loss. Champions hit the practice field. Coach has a play to teach you.</p><button class="btn primary big" data-act="train">Head to Training Camp</button>`
+              : `<button class="btn primary big" data-act="open" data-id="${f.id}">Back to the front office</button>`}`
+          : `<div class="spread"><div class="eyebrow">Business office · count the money (${P.qi+1} of ${P.qs.length})</div></div>
+            <div class="bizq">${P.qs[P.qi].tpl(P.qs[P.qi].a, P.qs[P.qi].b)}</div>
+            <div class="ansbox empty" id="ansbox">?</div>
+            <div class="muted" id="bizfb" style="font-weight:600;min-height:24px">No clock here. Answer in millions: type 56 for $56M.</div>
+            ${padHTML()}`}
+      </section>
+      <section class="panel"><div class="eyebrow" style="margin-bottom:8px">Game-day money</div>
+        <div class="ledger tnum">
+          ${P.lines.map(l=>`<div><span>${esc(l[0])}</span><span class="${l[1]<0?'minus':'plus'}">${signed(l[1])}</span></div>`).join('')}
+          ${P.biz.map(x=>`<div><span>${esc(x.label)}</span><span class="plus">${signed(x.earned)}</span></div>`).join('')}
+          <div class="tot"><span>Total today</span><span class="${total<0?'minus':''}">${signed(total)}</span></div>
+          <div><span>Team bank</span><span class="${f.cash<0?'minus':''}">${money(f.cash)}</span></div>
+        </div></section>
+    </div>
+  </div>`;
+}
+function startBiz(){
+  if(P.qi >= P.qs.length) return;
+  const q = P.qs[P.qi];
+  Pad.start(q.a*q.b, v => {
+    const f = frById(P.fr), ans = q.a*q.b, ok = +v===ans;
+    record(q.a, q.b, ok, 6000);
+    const earned = ok ? ans : Math.floor(ans/2);
+    f.cash += earned; save();
+    P.biz.push({label: ok ? `Business: ${q.a} × $${q.b}M` : `Box office (accountant fixed it)`, earned});
+    const box = document.getElementById('ansbox'), fb = document.getElementById('bizfb');
+    if(ok){ box.className='ansbox right'; box.textContent = '✓ ' + money(ans); fb.textContent = `Cha-ching! +${money(ans)} to the team bank.`; SFX.cash(); }
+    else { box.className='ansbox wrong'; box.textContent = `${q.a} × $${q.b}M = ${money(ans)}`; fb.textContent = `Your accountant caught the mistake. You keep half: +${money(earned)}.`; SFX.bad(); }
+    P.qi++;
+    setTimeout(()=>{ if(view!=='post') return; render(); startBiz(); }, ok ? 1500 : 3000);
+  });
+}
+
+/* ================= TRAINING CAMP ================= */
+// Each strategy breaks "x × n" into steps he already knows. steps(x) -> [[prompt, value], ...]
+const STRATS = {
+  one:   {n:1,  name:'Mirror',          school:'Identity property: 1 group of anything is itself.', tip:'Anything times 1 stays exactly the same.', steps:x=>[[`${x} × 1 stays ${x}`, x]]},
+  ten:   {n:10, name:'Add a Zero',      school:'Place value: times 10 moves every digit one place left.', tip:'Times 10? Just put a zero on the end.', steps:x=>[[`${x} with a zero on the end`, 10*x]]},
+  two:   {n:2,  name:'Doubles',         school:'Doubles.', tip:'Times 2 means double it: add the number to itself.', steps:x=>[[`Double ${x}  (${x} + ${x})`, 2*x]]},
+  five:  {n:5,  name:'Half of Ten',     school:'Half of ×10, or skip-count by 5s.', tip:'Times 10 is easy. Times 5 is exactly half of that.', steps:x=>[[`${x} × 10`, 10*x],[`Half of ${10*x}`, 5*x]]},
+  nine:  {n:9,  name:'Ten Minus One',   school:'Use a known fact: ×10, then subtract one group (distributive property).', tip:'Do times 10, then take away one group.', steps:x=>[[`${x} × 10`, 10*x],[`${10*x} − ${x}`, 9*x]],
+          bonus:'Check your answer: for 9 × 2 up to 9 × 10, the two digits always add up to 9. (9 × 7 = 63, and 6 + 3 = 9.)'},
+  four:  {n:4,  name:'Double Double',   school:'Double a double.', tip:'Times 4: double it, then double it again.', steps:x=>[[`Double ${x}`, 2*x],[`Double ${2*x}`, 4*x]]},
+  eleven:{n:11, name:'Ten Plus One',    school:'Break apart 11 into 10 + 1 (distributive property).', tip:'Do times 10, then add one more group.', steps:x=>[[`${x} × 10`, 10*x],[`${10*x} + ${x}`, 11*x]],
+          bonus:'Shortcut: 11 times a single digit just repeats it. 11 × 7 = 77.'},
+  twelve:{n:12, name:'Ten Plus Two',    school:'Break apart 12 into 10 + 2 (distributive property).', tip:'Do times 10 and times 2, then add them together.', steps:x=>[[`${x} × 10`, 10*x],[`${x} × 2`, 2*x],[`${10*x} + ${2*x}`, 12*x]]},
+  three: {n:3,  name:'Double Plus One', school:'Break apart 3 into 2 + 1: a double plus one more group.', tip:'Double it, then add one more group.', steps:x=>[[`Double ${x}`, 2*x],[`${2*x} + ${x}`, 3*x]]},
+  six:   {n:6,  name:'Five Plus One',   school:'Break apart 6 into 5 + 1 (distributive property).', tip:'Do times 5, then add one more group.', steps:x=>[[`${x} × 5`, 5*x],[`${5*x} + ${x}`, 6*x]]},
+  eight: {n:8,  name:'Triple Double',   school:'Double a double a double.', tip:'Times 8: double it three times in a row.', steps:x=>[[`Double ${x}`, 2*x],[`Double ${2*x}`, 4*x],[`Double ${4*x}`, 8*x]]},
+  seven: {n:7,  name:'Five Plus Two',   school:'Break apart 7 into 5 + 2 (distributive property).', tip:'Do times 5 and times 2, then add them together.', steps:x=>[[`${x} × 5`, 5*x],[`${x} × 2`, 2*x],[`${5*x} + ${2*x}`, 7*x]]},
+};
+// Easiest strategy wins when a fact could use two (7 × 9 uses Ten Minus One, not Five Plus Two).
+const STRAT_ORDER = ['one','ten','two','five','nine','four','eleven','twelve','three','six','eight','seven'];
+const PLAYBOOK = ['two','ten','five','nine','four','eight','three','six','seven','eleven','twelve'];
+function stratFor(a,b){ for(const id of STRAT_ORDER){ const n = STRATS[id].n; if(a===n) return {id, x:b}; if(b===n) return {id, x:a}; } }
+function coachPick(missed){
+  const pool = (missed||[]).filter(([a,b]) => a>1 && b>1);
+  if(pool.length){
+    const cnt = {}; pool.forEach(([a,b]) => { const k = fkey(a,b); cnt[k] = (cnt[k]||0)+1; });
+    return pool.reduce((m,p) => cnt[fkey(p[0],p[1])] > cnt[fkey(m[0],m[1])] ? p : m, pool[0]);
+  }
+  let best = [7,8], bw = -1;  // lost without a miss: work on his weakest fact
+  for(let a=2;a<=maxFactor();a++) for(let b=a;b<=maxFactor();b++){ const w = weight(a,b); if(w>bw){ bw=w; best=[b,a]; } }
+  return best;
+}
+const shuffle = arr => { const a = arr.slice(); for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; };
+
+let T = null;
+function startTraining(sid, a, b, required){
+  const n = STRATS[sid].n, x0 = a===n ? b : a;
+  const pool = shuffle(Array.from({length:Math.min(maxFactor(),12)-2+1}, (_,i)=>i+2).filter(x => x!==x0));
+  const take = k => { const out = []; for(let i=0;i<k;i++) out.push(pool.length ? pool.shift() : rnd(2,9)); return out; };
+  T = {sid, a, b, x0, required, stage:'film', shown:1, guided:take(3), gi:0, si:0, done:[], scrim:[...take(3), x0], ci:0, right:0, fb:'', fbCls:''};
+  go('train'); armTrain();
+}
+ACT.train = () => { const f = frById(cur); const [a,b] = f.trainFact || coachPick([]); const {id} = stratFor(a,b); startTraining(id, a, b, true); };
+ACT.playbook = () => go('playbook');
+ACT.drill = d => { const n = STRATS[d.id].n, x = rnd(3, Math.min(9, maxFactor())); startTraining(d.id, x, n, false); };
+ACT.nextStep = () => { T.shown++; render(); };
+ACT.toGuided = () => { T.stage = 'guided'; render(); armTrain(); };
+ACT.finishTraining = () => { go('hub'); };
+
+function vPlaybook(){
+  const f = frById(cur);
+  return `
+  <div class="gamebar"><button class="link" data-act="open" data-id="${f.id}">← Back to front office</button></div>
+  <div class="stack">
+    <div><div class="eyebrow">Training Camp</div><h1 class="display" style="font-size:clamp(48px,9vw,72px)">The Playbook</h1>
+      <p class="muted" style="margin:6px 0 0;max-width:60ch">Every fact has a play that makes it easier. Pick one to practice.</p></div>
+    <div class="plays">${PLAYBOOK.map(id => { const s = STRATS[id]; return `<button class="play" data-act="drill" data-id="${id}"><span class="x">×${s.n}</span><h3 class="display">${s.name}</h3><span>${s.tip}</span><span class="muted" style="font-size:14px">In class: ${s.school}</span></button>`; }).join('')}</div>
+  </div>`;
+}
+
+function vTrain(){
+  const f = frById(cur), s = STRATS[T.sid], n = s.n;
+  const total = T.guided.length + T.scrim.length, doneCount = T.stage==='film' ? 0 : T.stage==='guided' ? T.gi : T.stage==='scrim' ? T.guided.length + T.ci : total;
+  const bar = `<div class="progress">${Array.from({length:total},(_,i)=>`<i class="${i<doneCount?'on':''}"></i>`).join('')}</div>`;
+  const stepRow = (i, p, v, cls) => `<div class="step ${cls||''}"><span class="n">${i+1}</span><span class="p">${esc(p)}</span><span class="v tnum">${v}</span></div>`;
+  const head = `<div class="gamebar"><button class="link" data-act="open" data-id="${f.id}">${T.required?'← Front office (training still needed)':'← Back to front office'}</button></div>
+    <div><div class="eyebrow">Training Camp · ×${n}</div><h1 class="display" style="font-size:clamp(48px,9vw,72px)">${s.name}</h1><p style="margin:6px 0 0;font-size:19px;max-width:60ch">${s.tip}</p></div>`;
+  let body = '';
+
+  if(T.stage==='film'){
+    const steps = s.steps(T.x0), all = T.shown >= steps.length;
+    body = `<section class="panel stack"><div class="eyebrow">Film room · watch the play</div>
+      <div class="bigfact tnum">${T.a} × ${T.b}${all ? ` = <span style="color:var(--amber)">${T.a*T.b}</span>` : ''}</div>
+      ${T.a!==T.b ? `<div class="muted" style="text-align:center;font-weight:600">Order doesn't matter: ${T.a} × ${T.b} is the same as ${T.b} × ${T.a}. (In class: turn-around facts.)</div>` : ''}
+      <div class="steps">${steps.slice(0,T.shown).map((st,i)=>stepRow(i, st[0], st[1], i===steps.length-1?'final':'')).join('')}</div>
+      ${all ? `<p style="margin:0" class="muted"><b style="color:var(--text)">In class you might hear:</b> ${s.school}</p>${s.bonus ? `<p style="margin:0" class="muted"><b style="color:var(--text)">Bonus tip:</b> ${s.bonus}</p>` : ''}<button class="btn primary big" data-act="toGuided">Your turn</button>`
+            : `<button class="btn primary big" data-act="nextStep">Next step</button>`}
+    </section>`;
+  }
+  else if(T.stage==='guided'){
+    const x = T.guided[T.gi], steps = s.steps(x);
+    body = `<section class="panel stack">${bar}<div class="eyebrow">Practice reps · ${T.gi+1} of ${T.guided.length} · run the play step by step</div>
+      <div class="bigfact tnum">${x} × ${n}</div>
+      <div class="steps">${steps.slice(0,T.si).map((st,i)=>stepRow(i, st[0], st[1])).join('')}
+        <div class="step" style="border-color:var(--amber)"><span class="n">${T.si+1}</span><span class="p">${esc(steps[T.si][0])} = ?</span></div></div>
+      <div class="ansbox empty" id="ansbox">?</div>
+      <div id="tfb" class="${T.fbCls}" style="font-weight:700;min-height:24px">${T.fb}</div>
+      ${padHTML()}</section>`;
+  }
+  else if(T.stage==='scrim'){
+    const x = T.scrim[T.ci], flip = (T.ci % 2 === 1), last = T.ci === T.scrim.length-1;
+    body = `<section class="panel stack">${bar}<div class="eyebrow">Scrimmage · ${T.ci+1} of ${T.scrim.length} · no clock, use the play in your head${last?' · this is the one from the game!':''}</div>
+      <div class="bigfact tnum">${flip ? `${n} × ${x}` : `${x} × ${n}`}</div>
+      <div class="ansbox empty" id="ansbox">?</div>
+      <div id="tfb" class="${T.fbCls}" style="font-weight:700;min-height:24px">${T.fb}</div>
+      ${padHTML()}</section>`;
+  }
+  else {
+    body = `<section class="panel stack" style="text-align:center">
+      <div class="res display W" style="font-size:clamp(64px,12vw,110px)">Training complete</div>
+      <p style="margin:0;font-size:19px">${T.right} of ${T.scrim.length} in the scrimmage. You just learned <b>${s.name}</b> for ×${n} facts.</p>
+      ${T.required ? `<div class="display" style="font-size:36px;color:var(--good)">+$15M training bonus</div>` : ''}
+      <div><button class="btn primary big" data-act="finishTraining">${T.required ? 'Back to the front office' : 'Done'}</button></div></section>`;
+  }
+  return `<div class="stack" style="max-width:760px">${head}${body}</div>`;
+}
+
+function armTrain(){
+  if(view!=='train' || !T) return;
+  const s = STRATS[T.sid], n = s.n;
+  const later = (ms) => setTimeout(() => { if(view!=='train') return; T.fb=''; T.fbCls=''; render(); armTrain(); }, ms);
+  if(T.stage==='guided'){
+    const x = T.guided[T.gi], steps = s.steps(x), val = steps[T.si][1];
+    Pad.start(val, v => {
+      const box = document.getElementById('ansbox'), ok = +v === val;
+      box.className = 'ansbox ' + (ok ? 'right' : 'wrong'); box.textContent = ok ? '✓ ' + val : `It's ${val}`;
+      ok ? SFX.good() : SFX.bad();
+      T.si++;
+      if(T.si >= steps.length){ T.si = 0; T.gi++; T.fb = `${x} × ${n} = ${x*n}`; T.fbCls = 'plus'; }
+      if(T.gi >= T.guided.length){ T.stage = 'scrim'; T.fb = ''; T.fbCls = ''; }
+      later(ok ? 700 : 1800);
+    });
+  }
+  else if(T.stage==='scrim'){
+    const x = T.scrim[T.ci], ans = x*n, t0 = performance.now();
+    Pad.start(ans, v => {
+      const ok = +v === ans, box = document.getElementById('ansbox');
+      record(x, n, ok, performance.now()-t0);
+      if(ok){ T.right++; box.className = 'ansbox right'; box.textContent = '✓ ' + ans; SFX.good(); }
+      else {
+        box.className = 'ansbox wrong'; box.textContent = `${x} × ${n} = ${ans}`; SFX.bad();
+        document.getElementById('tfb').innerHTML = 'Run the play: ' + s.steps(x).map(st => `${esc(st[0])} = ${st[1]}`).join(' → ');
+      }
+      T.ci++;
+      if(T.ci >= T.scrim.length){
+        T.stage = 'done';
+        const f = frById(cur);
+        if(T.required && f.needsTraining){ f.needsTraining = false; f.trainFact = null; f.cash += 15; }
+        save(); setTimeout(() => { if(view==='train'){ render(); SFX.score(); } }, ok ? 900 : 3500);
+        return;
+      }
+      later(ok ? 900 : 3500);
+    });
+  }
+}
+
+/* ================= SHARK TANK ================= */
+function makeShark(f){
+  const s = pick(SHARKS), per = rnd(4, Math.min(12, maxFactor())), n = rnd(3, 9), total = per*n;
+  const kind = chance(.6) ? 'loan' : 'invest';
+  const amount = Math.round(total * (kind==='loan' ? .55 + Math.random()*.6 : .6 + Math.random()*.6));
+  return {name:s.name, color:s.color, kind, per, n, amount, stage:'pitch'};
+}
+function vShark(){
+  const f = frById(cur), s = f.shark;
+  const pitch = s.kind==='loan'
+    ? `“I like the ${esc(f.city)} ${esc(f.name)}. I'll give you <b>${money(s.amount)}</b> right now. In return, you pay me <b>${money(s.per)}</b> after each of your next <b>${s.n}</b> games.”`
+    : `“Invest <b>${money(s.amount)}</b> in my sports drink company. I'll pay you back <b>${money(s.per)}</b> after each of your next <b>${s.n}</b> games.”`;
+  const total = s.per*s.n;
+  let body;
+  if(s.stage==='pitch') body = `
+    <div class="bizq">Before you decide, do the math. How much is <b>${s.n} games × ${money(s.per)}</b>?</div>
+    <div class="ansbox empty" id="ansbox">?</div>
+    <div class="muted" id="bizfb" style="font-weight:600;min-height:24px">No clock here. Answer in millions. Sharks respect a careful owner.</div>
+    ${padHTML()}`;
+  else {
+    const loan = s.kind==='loan', diff = loan ? total - s.amount : total - s.amount;
+    const verdict = loan
+      ? (diff>0 ? `The shark makes <b>${money(diff)}</b> off this deal. Only take it if you need cash right now for an upgrade.` : diff<0 ? `You'd come out <b>${money(-diff)}</b> ahead. That's a sweet deal!` : `It's even. You get the money now and pay back the same amount.`)
+      : (diff>0 ? `You'd make a <b>${money(diff)}</b> profit, but your money is tied up for ${s.n} games.` : diff<0 ? `You'd lose <b>${money(-diff)}</b> on this one.` : `You'd just get your own money back.`);
+    const cant = !loan && f.cash < s.amount;
+    body = `
+      ${s.stage==='fixed' ? `<div class="muted" style="font-weight:600">Close! ${s.n} × ${money(s.per)} = ${money(total)}.</div>` : `<div style="font-weight:700;color:var(--good)">Right! ${s.n} × ${money(s.per)} = ${money(total)}.</div>`}
+      <div class="cmp tnum">
+        <div><span class="eyebrow">${loan?'You get now':'You pay now'}</span><b class="${loan?'plus':'minus'}">${money(s.amount)}</b></div>
+        <div><span class="eyebrow">${loan?'You pay back':'You get back'}</span><b class="${loan?'minus':'plus'}">${money(total)}</b></div>
+      </div>
+      <p style="margin:0;font-size:18px">${verdict}</p>
+      ${cant ? `<p class="minus" style="margin:0;font-weight:700">You only have ${money(f.cash)} in the bank, so you can't afford this one.</p>` : ''}
+      <div class="row"><button class="btn primary big" data-act="deal" ${cant?'disabled':''}>Deal!</button><button class="btn big" data-act="nodeal">No deal</button></div>`;
+  }
+  return `
+  <div class="gamebar"><button class="link" data-act="open" data-id="${f.id}">← Back to front office</button></div>
+  <div class="stack" style="max-width:720px">
+    <div class="row">${FIN}<div><div class="eyebrow">Shark Tank</div><h1 class="display" style="font-size:52px;color:${s.color}">${esc(s.name)}</h1></div></div>
+    <p class="quote" style="margin:0">${pitch}</p>
+    <section class="panel stack">${body}</section>
+  </div>`;
+}
+ACT.shark = () => {
+  go('shark');
+  const f = frById(cur), s = f.shark;
+  if(s.stage!=='pitch') return;
+  Pad.start(s.per*s.n, v => {
+    const ok = +v === s.per*s.n;
+    record(s.per, s.n, ok, 6000);
+    s.stage = ok ? 'decide' : 'fixed'; save();
+    ok ? SFX.good() : SFX.bad();
+    render();
+  });
+};
+ACT.deal = () => {
+  const f = frById(cur), s = f.shark;
+  if(s.kind==='loan') f.cash += s.amount; else { if(f.cash < s.amount) return; f.cash -= s.amount; }
+  f.deals.push({shark:s.name, kind:s.kind, per:s.per, left:s.n});
+  f.shark = null; save(); SFX.cash();
+  toast(`Deal! ${s.name} shakes your hand.`); go('hub');
+};
+ACT.nodeal = () => { const f = frById(cur); const n = f.shark.name; f.shark = null; save(); toast(`${n} swims away.`); go('hub'); };
+
+/* ================= COACH'S OFFICE ================= */
+const LV = [{c:'#243447',t:'Not seen yet'},{c:'#FF5A5F',t:'Needs work'},{c:'#F2994A',t:'Learning'},{c:'#F5D547',t:'Solid'},{c:'#3DDC84',t:'Mastered (fast)'}];
+let coachSel = null;
+function vCoach(){
+  const m = maxFactor();
+  const acc = S.stats.answered ? Math.round(S.stats.correct/S.stats.answered*100) : 0;
+  const days = Object.keys(S.stats.days).length;
+  const todayN = S.stats.days[today()] || 0;
+  let head = '<tr><th></th>' + Array.from({length:12},(_,i)=>`<th>${i+1}</th>`).join('') + '</tr>', rows = '';
+  for(let a=1;a<=12;a++){
+    rows += `<tr><th>${a}</th>`;
+    for(let b=1;b<=12;b++){ const lv = level(S.facts[fkey(a,b)]); rows += `<td><button class="cell ${a>m||b>m?'off':''}" style="background:${LV[lv].c}" data-act="cell" data-a="${a}" data-b="${b}" aria-label="${a} times ${b}: ${LV[lv].t}">${lv===1?'!':''}</button></td>`; }
+    rows += '</tr>';
+  }
+  const trouble = Object.entries(S.facts).filter(([k,r])=>r.n>=2).map(([k,r])=>({k, score:(1-r.c/r.n)*3 + (r.c?r.t/r.c:9000)/3000}))
+    .sort((x,y)=>y.score-x.score).slice(0,8).filter(x=>x.score>1.4);
+  const sel = coachSel ? (()=>{ const r = S.facts[fkey(coachSel[0],coachSel[1])];
+    return r&&r.n ? `<b>${coachSel[0]} × ${coachSel[1]} = ${coachSel[0]*coachSel[1]}</b>: ${r.c} of ${r.n} right${r.c?`, average ${(r.t/r.c/1000).toFixed(1)}s`:''}. ${LV[level(r)].t}.` : `<b>${coachSel[0]} × ${coachSel[1]}</b>: not seen yet.`; })() : 'Tap a square for details.';
+  const seg = (act, cur, opts) => `<div class="seg">${opts.map(([v,l])=>`<button data-act="${act}" data-v="${v}" aria-pressed="${String(cur)===String(v)}">${l}</button>`).join('')}</div>`;
+  return `
+  <div class="gamebar"><button class="link" data-act="home">← Back to the game</button></div>
+  <div class="stack">
+    <div><div class="eyebrow">For parents</div><h1 class="display" style="font-size:clamp(48px,9vw,72px)">Coach's Office</h1></div>
+    <div class="kpis">
+      <div class="kpi"><span class="eyebrow">Facts answered</span><b class="tnum">${S.stats.answered.toLocaleString()}</b></div>
+      <div class="kpi"><span class="eyebrow">Accuracy</span><b class="tnum">${acc}%</b></div>
+      <div class="kpi"><span class="eyebrow">Today</span><b class="tnum">${todayN}</b></div>
+      <div class="kpi"><span class="eyebrow">Days played</span><b class="tnum">${days}</b></div>
+    </div>
+    <section class="panel stack"><div class="spread"><div class="eyebrow">Fact map · ×1 to ×12</div><div class="muted" style="font-size:14px">Faded squares aren't in play yet</div></div>
+      <div class="heat"><table>${head}${rows}</table></div>
+      <div class="legend">${LV.map(l=>`<span><i style="background:${l.c}"></i>${l.t}</span>`).join('')}</div>
+      <div id="cellinfo" style="text-align:center">${sel}</div>
+    </section>
+    ${trouble.length ? `<section class="panel stack"><div class="eyebrow">Trickiest facts right now</div><div class="trouble">${trouble.map(t=>{const [a,b]=t.k.split('x');return `<span>${a}×${b}</span>`;}).join('')}</div><p class="muted" style="margin:0">The game automatically shows these more often.</p></section>` : ''}
+    <section class="panel stack"><div class="eyebrow">Settings</div>
+      <div class="stack" style="gap:6px"><b>Facts in play</b>${seg('setRange', S.settings.range, [['auto',`Auto (now ×1–${S.unlocked})`],['10','×1–10'],['11','×1–11'],['12','×1–12']])}
+        <span class="muted" style="font-size:14px">Auto adds ×11 once most of ×2–10 are solid, then ×12 once ×11 is solid.</span></div>
+      <div class="stack" style="gap:6px"><b>Game clock per play</b>${seg('setTimer', S.settings.timer, [['auto',`Adaptive (now ${PACE[S.pace]}s)`],[12,'Fixed 12s'],[8,'Fixed 8s'],[5,'Fixed 5s']])}
+        <span class="muted" style="font-size:14px">Adaptive speeds up one step after 3 right in a row and slows down one step after 2 misses (${PACE[0]}s down to ${PACE[PACE.length-1]}s). Answers in the first 40% of the clock count as “fast” big plays.</span></div>
+      <div class="stack" style="gap:6px"><b>Sound</b>${seg('setSound', S.settings.sound, [[true,'On'],[false,'Off']])}</div>
+    </section>
+    <section class="panel stack"><div class="eyebrow">Cloud save</div>
+      <p style="margin:0">Use the same family code on the laptop and the iPad and they'll share one set of teams. Pick something only your family would know, like <b>dioli-4471</b>.</p>
+      ${Cloud.code ? `<div class="row"><button class="btn" data-act="syncNow">Sync now</button><button class="link" data-act="disconnect">Disconnect this device</button></div>`
+        : `<div class="row" style="align-items:end"><label class="fld">Family code<input class="txt" id="famcode" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. dioli-4471"></label><button class="btn primary" data-act="connect" ${Cloud.usable?'':'disabled'}>Connect</button></div>`}
+      <div class="muted" data-cloud style="font-size:14px">${cloudLine()}</div>
+      <div id="cloudchoice"></div>
+    </section>
+    <section class="stack" id="resetzone"><div><button class="link" data-act="askReset">Reset all progress</button></div></section>
+    <p class="muted" style="font-size:14px;margin:0">Progress is always saved in this browser${Cloud.code?' and backed up to the cloud':''}. Without a family code, clearing Safari's website data erases it.</p>
+  </div>`;
+}
+ACT.cell = d => { coachSel = [+d.a, +d.b]; render(); };
+ACT.setRange = d => { S.settings.range = d.v; save(); render(); };
+ACT.setTimer = d => { S.settings.timer = d.v==='auto' ? 'auto' : +d.v; save(); render(); };
+ACT.setSound = d => { S.settings.sound = d.v==='true'; save(); render(); };
+ACT.askReset = () => { document.getElementById('resetzone').innerHTML = `<div class="row"><span>Erase every franchise and all fact history?</span><button class="btn danger" data-act="reset">Erase everything</button><button class="btn" data-act="coach">Cancel</button></div>`; };
+ACT.reset = () => { S = fresh(); save(); toast('All progress erased.'); go('home'); };
+
+let pendingRemote = null;
+const teamCount = s => `${s.franchises.length} team${s.franchises.length===1?'':'s'}, ${s.stats.answered.toLocaleString()} facts answered`;
+ACT.connect = async () => {
+  const code = (document.getElementById('famcode').value || '').trim().toLowerCase().replace(/\s+/g,'-');
+  if(!/^[a-z0-9-]{4,40}$/.test(code)){ toast('Use 4–40 letters, numbers or dashes for the family code.'); return; }
+  Cloud.setCode(code);
+  let remote;
+  try { remote = await Cloud.fetchRemote(); }
+  catch(e){ Cloud.setCode(''); toast(e.message); render(); return; }
+  const localEmpty = !S.franchises.length && !S.stats.answered;
+  if(!remote){ await Cloud.push(); toast('Connected. Progress on this device is now saved to the cloud.'); render(); return; }
+  remote = normalize(remote);
+  if(localEmpty){ S = remote; saveLocal(); Cloud.status='ok'; Cloud.lastSync=Date.now(); toast('Connected. Loaded your cloud save.'); render(); return; }
+  pendingRemote = remote; render();
+  document.getElementById('cloudchoice').innerHTML = `<div class="stack" style="gap:10px"><b>This code already has a save. Which one do you want to keep?</b>
+    <div class="row"><button class="btn primary" data-act="useCloud">Use the cloud save (${teamCount(remote)})</button>
+    <button class="btn" data-act="useLocal">Keep this device's progress (${teamCount(S)})</button></div>
+    <span class="muted" style="font-size:14px">The one you don't pick is replaced.</span></div>`;
+};
+ACT.useCloud = () => { if(!pendingRemote) return; S = pendingRemote; pendingRemote = null; saveLocal(); Cloud.status='ok'; Cloud.lastSync=Date.now(); toast('Loaded the cloud save.'); render(); };
+ACT.useLocal = async () => { pendingRemote = null; S.updated = Date.now(); saveLocal(); await Cloud.push(); toast('Cloud save replaced with this device.'); render(); };
+ACT.syncNow = () => Cloud.sync().then(()=>{ if(view==='coach') render(); });
+ACT.disconnect = () => { Cloud.flush(); Cloud.setCode(''); Cloud.status='off'; toast('Disconnected. Progress stays on this device.'); render(); };
+
+render();
+Cloud.sync();
+</script>
+</body>
+</html>
