@@ -513,17 +513,21 @@ function bigBanner(text){
   const d = document.createElement('div'); d.className='banner-fx'; d.innerHTML = `<span>${esc(text)}</span>`;
   document.body.appendChild(d); setTimeout(()=>d.remove(), 1350);
 }
-const Pad = { on:false, ans:0, val:'', cb:null, box:'ansbox',
-  start(ans, cb, box){ this.on=true; this.ans=ans; this.val=''; this.cb=cb; this.box=box||'ansbox'; this.draw(); },
+const Pad = { on:false, ans:0, val:'', cb:null, box:'ansbox', answers:[], wait:0,
+  start(ans, cb, box, also){ this.on=true; this.ans=ans; this.answers=[ans, ...(also||[])].map(String); this.val=''; this.cb=cb; this.box=box||'ansbox'; clearTimeout(this.wait); this.draw(); },
   press(k){
     if(!this.on) return;
+    clearTimeout(this.wait);
     if(k==='del') this.val = this.val.slice(0,-1);
     else if(k==='ok'){ if(this.val) this.fire(); return; }
     else if(this.val.length<3 && !(this.val==='' && k==='0')) this.val += k;
     this.draw();
-    if(k!=='del' && this.val.length>=String(this.ans).length) this.fire();
+    if(k==='del') return;
+    const v = this.val, exact = this.answers.includes(v), longer = this.answers.some(a => a.length > v.length && a.startsWith(v));
+    if(exact && longer) this.wait = setTimeout(() => this.fire(), 800);
+    else if(exact || (!longer && v.length >= Math.max(...this.answers.map(a=>a.length)))) this.fire();
   },
-  fire(){ const v=this.val; this.on=false; this.cb && this.cb(v); },
+  fire(){ clearTimeout(this.wait); const v=this.val; this.on=false; this.cb && this.cb(v); },
   draw(){ const el = document.getElementById(this.box); if(!el) return; el.className='ansbox'+(this.val?'':' empty'); el.textContent = this.val || '?'; }
 };
 const padHTML = () => `<div class="pad">${['1','2','3','4','5','6','7','8','9'].map(k=>`<button class="key" data-k="${k}">${k}</button>`).join('')}
@@ -1266,6 +1270,7 @@ function vTrain(){
   else if(T.stage==='guided'){
     const x = T.guided[T.gi], steps = s.steps(x);
     body = `<section class="panel stack">${bar}<div class="eyebrow">Practice reps · ${T.gi+1} of ${T.guided.length} · run the play step by step</div>
+      <div class="muted" style="font-weight:600;margin-top:-6px">Know the answer already? Just type it.</div>
       <div class="bigfact tnum">${x} × ${n}</div>
       <div class="steps">${steps.slice(0,T.si).map((st,i)=>stepRow(i, st[0], st[1])).join('')}
         <div class="step" style="border-color:var(--amber)"><span class="n">${T.si+1}</span><span class="p">${esc(steps[T.si][0])} = ?</span></div></div>
@@ -1295,18 +1300,26 @@ function vTrain(){
 function armTrain(){
   if(view!=='train' || !T) return;
   const s = STRATS[T.sid], n = s.n;
-  const later = (ms) => setTimeout(() => { if(view!=='train') return; T.fb=''; T.fbCls=''; render(); armTrain(); }, ms);
+  const later = (ms) => setTimeout(() => { if(view!=='train') return; render(); T.fb=''; T.fbCls=''; armTrain(); }, ms);
   if(T.stage==='guided'){
-    const x = T.guided[T.gi], steps = s.steps(x), val = steps[T.si][1];
+    const x = T.guided[T.gi], steps = s.steps(x), val = steps[T.si][1], final = x*n;
     Pad.start(val, v => {
-      const box = document.getElementById('ansbox'), ok = +v === val;
+      const box = document.getElementById('ansbox');
+      // Knowing the answer outright beats running the play: accept it at any step.
+      if(+v === final && T.si < steps.length-1){
+        box.className = 'ansbox right'; box.textContent = '✓ ' + final; SFX.fast();
+        T.si = 0; T.gi++; T.fb = `You already know it! ${x} × ${n} = ${final}`; T.fbCls = 'plus';
+        if(T.gi >= T.guided.length){ T.stage = 'scrim'; }
+        return later(1400);
+      }
+      const ok = +v === val;
       box.className = 'ansbox ' + (ok ? 'right' : 'wrong'); box.textContent = ok ? '✓ ' + val : `It's ${val}`;
       ok ? SFX.good() : SFX.bad();
       T.si++;
-      if(T.si >= steps.length){ T.si = 0; T.gi++; T.fb = `${x} × ${n} = ${x*n}`; T.fbCls = 'plus'; }
+      if(T.si >= steps.length){ T.si = 0; T.gi++; T.fb = `${x} × ${n} = ${final}`; T.fbCls = 'plus'; }
       if(T.gi >= T.guided.length){ T.stage = 'scrim'; T.fb = ''; T.fbCls = ''; }
       later(ok ? 700 : 1800);
-    });
+    }, 'ansbox', [final]);
   }
   else if(T.stage==='scrim'){
     const x = T.scrim[T.ci], ans = x*n, t0 = performance.now();
