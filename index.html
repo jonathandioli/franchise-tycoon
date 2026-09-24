@@ -58,6 +58,9 @@ button{font:inherit;color:inherit}
 .frcard .city{font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.85}
 .frcard .name{font-size:44px}
 .frcard .meta{display:flex;justify-content:space-between;gap:8px;padding:12px 18px;font-weight:600;font-size:15px}
+.pinit{width:58px;height:58px;border-radius:50%;background:rgba(0,0,0,.25);display:grid;place-items:center;font-size:42px;padding-top:6px}
+.pchip{background:var(--c);color:#fff;font-weight:700;padding:6px 14px;border-radius:999px;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.codebig{font-family:Teko,sans-serif;font-size:44px;font-weight:600;letter-spacing:.04em;line-height:1;background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:12px 16px 6px;user-select:all;-webkit-user-select:all;overflow-wrap:anywhere}
 .frcard.new{border:2px dashed var(--line);background:transparent;align-items:center;justify-content:center;min-height:170px;color:var(--muted);gap:6px}
 .frcard.new .display{font-size:34px;color:var(--text)}
 .frcard.new:hover{border-color:var(--amber)}
@@ -243,67 +246,114 @@ const today = () => new Date().toISOString().slice(0,10);
 /* ================= save data ================= */
 const KEY = 'franchise-tycoon.v1';
 function fresh(){ return {v:1, facts:{}, franchises:[], unlocked:10,
-  settings:{range:'auto', timer:'auto', timerV:2, sound:true}, pace:1,
+  settings:{range:'auto', timer:'auto', timerV:2, sound:true}, pace:3, paceV:2,
   stats:{answered:0, correct:0, bestStreak:0, days:{}}}; }
 function normalize(o){ const s = Object.assign(fresh(), o||{}); s.settings = Object.assign(fresh().settings, s.settings); s.stats = Object.assign(fresh().stats, s.stats); s.updated = s.updated || 0;
   if(!o || !o.settings || o.settings.timerV !== 2){ s.settings.timer = 'auto'; s.settings.timerV = 2; }  // saves from before the adaptive clock
+  if(o && o.paceV !== 2 && typeof o.pace === 'number'){ s.pace = o.pace + 2; s.paceV = 2; }  // clock gained 30s and 20s steps at the slow end
   s.pace = Math.min(PACE.length-1, Math.max(0, s.pace|0)); return s; }
 // Adaptive game clock: 3 right in a row -> one step faster; 2 misses -> one step slower.
-const PACE = [15, 12, 10, 8, 6.5, 5];
+const PACE = [30, 20, 15, 12, 10, 8, 6.5, 5];
 const clockSecs = () => S.settings.timer==='auto' ? PACE[S.pace] : +S.settings.timer;
-let S;
-try { S = normalize(JSON.parse(localStorage.getItem(KEY))); } catch(e){ S = fresh(); S.updated = 0; }
-function saveLocal(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
-function save(){ S.updated = Date.now(); saveLocal(); Cloud.queue(); }
+/* ================= players ================= */
+// The family is a list of players; each player has their own save (teams, facts, clock, settings).
+// S always points at the save of the player on this device (ME).
+const FAM_KEY = 'franchise-tycoon.family', PLAYER_KEY = 'franchise-tycoon.player';
+const PLAYER_COLORS = ['#2E5EAA','#D7263D','#2BA84A','#F46036','#6C3FB5','#0FA3B1','#E84A8A','#F5B700'];
+const newId = () => 'p' + Math.random().toString(36).slice(2,10);
+const newPlayer = (name, color, save) => ({id:newId(), name, color, updated:Date.now(), save: save || normalize(null)});
+let FAM;
+try { FAM = JSON.parse(localStorage.getItem(FAM_KEY)); } catch(e){}
+if(!FAM || !Array.isArray(FAM.players)){
+  FAM = {players:[]};
+  let old = null; try { old = JSON.parse(localStorage.getItem(KEY)); } catch(e){}
+  // Progress from before profiles becomes the first player (rename it in Coach's Office).
+  if(old && ((old.franchises && old.franchises.length) || (old.stats && old.stats.answered))) FAM.players.push(newPlayer('Player 1', PLAYER_COLORS[0], normalize(old)));
+}
+FAM.players.forEach(p => { if(!p.deleted) p.save = normalize(p.save); });
+const livePlayers = () => FAM.players.filter(p => !p.deleted);
+let ME = null, S = normalize(null);
+function setMe(id){
+  ME = livePlayers().find(p => p.id===id) || null;
+  S = ME ? ME.save : normalize(null);
+  try { ME ? localStorage.setItem(PLAYER_KEY, ME.id) : localStorage.removeItem(PLAYER_KEY); } catch(e){}
+}
+{ let last = ''; try { last = localStorage.getItem(PLAYER_KEY) || ''; } catch(e){}
+  setMe(last || (livePlayers().length===1 ? livePlayers()[0].id : '')); }
+function saveLocal(){ try { localStorage.setItem(FAM_KEY, JSON.stringify(FAM)); } catch(e){} }
+function save(){ S.updated = Date.now(); if(ME){ ME.updated = S.updated; Cloud.queue(ME.id); } saveLocal(); }
 try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch(e){}
 
 /* ================= cloud save (Vercel Blob via /api/save) ================= */
 const CODE_KEY = 'franchise-tycoon.code';
 const Cloud = {
   code: (()=>{ try { return localStorage.getItem(CODE_KEY) || ''; } catch(e){ return ''; } })(),
-  status: 'off', lastSync: 0, timer: 0, error: '',
+  status: 'off', lastSync: 0, timers: {}, error: '',
   get usable(){ return /^https?:$/.test(location.protocol); },
-  url(){ return '/api/save?code=' + encodeURIComponent(this.code); },
+  url(code, pid){ return '/api/save?code=' + encodeURIComponent(code) + (pid ? '&player=' + pid : ''); },
   setCode(c){ this.code = c; try { c ? localStorage.setItem(CODE_KEY, c) : localStorage.removeItem(CODE_KEY); } catch(e){} },
-  async fetchRemote(){
-    const r = await fetch(this.url(), {cache:'no-store'});
+  async fetchAll(code){
+    const r = await fetch(this.url(code || this.code), {cache:'no-store'});
     const j = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(j.error || 'Cloud save is unavailable.');
-    return j.save;
+    return j.players || [];
   },
-  async push(keepalive){
-    if(!this.code || !this.usable) return;
-    clearTimeout(this.timer); this.timer = 0;
+  async push(p, keepalive){
+    if(!p || !this.code || !this.usable) return;
     this.status = 'saving'; paintCloud();
     try {
-      const r = await fetch(this.url(), {method:'PUT', headers:{'content-type':'application/json'}, body:JSON.stringify(S), keepalive:!!keepalive});
+      const r = await fetch(this.url(this.code, p.id), {method:'PUT', headers:{'content-type':'application/json'}, body:JSON.stringify(p), keepalive:!!keepalive});
       const j = await r.json().catch(()=>({}));
       if(!r.ok) throw new Error(j.error || 'Cloud save failed.');
       this.status = 'ok'; this.lastSync = Date.now(); this.error = '';
     } catch(e){ this.status = 'error'; this.error = e.message; }
     paintCloud();
   },
-  queue(){ if(!this.code || !this.usable) return; clearTimeout(this.timer); this.timer = setTimeout(()=>this.push(), 4000); },
-  flush(){ if(this.timer) this.push(true); },
-  // On load: keep whichever copy is newer.
+  queue(id){
+    if(!this.code || !this.usable) return;
+    clearTimeout(this.timers[id]);
+    this.timers[id] = setTimeout(() => { delete this.timers[id]; this.push(FAM.players.find(p=>p.id===id)); }, 4000);
+  },
+  flush(){ Object.keys(this.timers).forEach(id => { clearTimeout(this.timers[id]); delete this.timers[id]; this.push(FAM.players.find(p=>p.id===id), true); }); },
+  // Merge player by player: whichever copy of each player is newer wins; local-only players get uploaded.
   async sync(){
     if(!this.code || !this.usable) return;
     this.status = 'saving'; paintCloud();
     try {
-      const remote = await this.fetchRemote();
-      if(remote && (remote.updated||0) > (S.updated||0)){
-        S = normalize(remote); saveLocal(); this.status = 'ok'; this.lastSync = Date.now();
-        if(view!=='game' && view!=='post') render();
-        paintCloud();
-      } else if(!remote || (remote.updated||0) < (S.updated||0)) await this.push();
-      else { this.status = 'ok'; this.lastSync = Date.now(); paintCloud(); }
-    } catch(e){ this.status = 'error'; this.error = e.message; paintCloud(); }
+      const remote = await this.fetchAll();
+      const busy = view==='game' || view==='post' || view==='train' || view==='shark';
+      const toPush = [];
+      remote.forEach(rp => {
+        const lp = FAM.players.find(p => p.id===rp.id);
+        if(!lp){ if(!rp.deleted) rp.save = normalize(rp.save); FAM.players.push(rp); return; }
+        if((rp.updated||0) > (lp.updated||0)){
+          if(lp===ME && busy) return;           // don't swap a save out from under a game in progress
+          Object.assign(lp, rp); if(!lp.deleted) lp.save = normalize(rp.save);
+          if(lp===ME) S = lp.save;
+        } else if((rp.updated||0) < (lp.updated||0)) toPush.push(lp);
+      });
+      FAM.players.forEach(lp => { if(!remote.some(rp => rp.id===lp.id)) toPush.push(lp); });
+      if(ME && ME.deleted) setMe('');
+      saveLocal();
+      for(const p of toPush) await this.push(p);
+      this.status = 'ok'; this.lastSync = Date.now(); this.error = '';
+      if(!busy) render();
+    } catch(e){ this.status = 'error'; this.error = e.message; }
+    paintCloud();
+  },
+  // Short and easy to type on an iPad: a team name + 3 digits (comets-452), checked to be unused.
+  async generate(){
+    for(let i=0;i<5;i++){
+      const code = `${pick(MASCOTS).toLowerCase()}-${rnd(100,999)}`;
+      if(!(await this.fetchAll(code)).length) return code;
+    }
+    throw new Error('Could not make a new code. Try again.');
   },
 };
 function cloudLine(){
   if(!Cloud.usable) return 'Cloud save works once the game is on its web address (not opened as a file).';
   if(!Cloud.code) return 'Not connected. Progress is saved on this device only.';
-  const c = `Family code “${esc(Cloud.code)}”`;
+  const c = `Family code <b>${esc(Cloud.code)}</b>`;
   if(Cloud.status==='saving') return `${c} · saving…`;
   if(Cloud.status==='error') return `${c} · <span class="minus">${esc(Cloud.error)}</span>`;
   if(Cloud.status==='ok') return `${c} · saved to the cloud at ${new Date(Cloud.lastSync).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}`;
@@ -495,11 +545,97 @@ let view = 'home', cur = null, draft = null;
 const frById = id => S.franchises.find(f=>f.id===id);
 function go(v, id){ view = v; if(id!==undefined) cur = id; Pad.on = false; render(); window.scrollTo(0,0); }
 function render(){
-  const f = { home:vHome, new:vNew, hub:vHub, post:vPost, shark:vShark, coach:vCoach, train:vTrain, playbook:vPlaybook }[view];
+  if(!ME && view!=='players') view = 'players';
+  const f = { players:vPlayers, home:vHome, new:vNew, hub:vHub, post:vPost, shark:vShark, coach:vCoach, train:vTrain, playbook:vPlaybook }[view];
   if(f) app.innerHTML = f();
   if(view==='new') bindNew();
+  if(view==='players') bindPlayers();
 }
 const ACT = {};
+
+/* ================= WHO'S PLAYING ================= */
+let addDraft = null, codeMode = '';
+function vPlayers(){
+  const ps = livePlayers();
+  const cards = ps.map(p => `
+    <button class="frcard" style="--c:${p.color}" data-act="pickPlayer" data-id="${p.id}">
+      <div class="top"><div class="pinit display">${esc((p.name[0]||'?').toUpperCase())}</div><div class="name display">${esc(p.name)}</div></div>
+      <div class="meta"><span>${p.save.franchises.length} team${p.save.franchises.length===1?'':'s'}</span><span class="tnum">${p.save.stats.answered.toLocaleString()} facts</span></div>
+    </button>`).join('');
+  const form = addDraft ? `<section class="panel stack" style="margin-top:16px"><div class="eyebrow">New player</div>
+      <div class="row" style="align-items:end"><label class="fld">Name<input class="txt" id="pname" maxlength="16" value="${esc(addDraft.name)}" placeholder="First name" autocomplete="off"></label></div>
+      <div class="swatches">${PLAYER_COLORS.map(c=>`<button class="swatch" style="--c:${c}" data-act="pickPColor" data-v="${c}" aria-pressed="${addDraft.color===c}" aria-label="Color ${c}"></button>`).join('')}</div>
+      <div class="row"><button class="btn primary" data-act="addPlayer">Add player</button><button class="link" data-act="addCancel">Cancel</button></div></section>` : '';
+  return `
+  <header class="masthead"><div class="eyebrow">Own the team. Run the business. Win it all.</div><h1 class="display">Franchise <span>Tycoon</span></h1></header>
+  <h2 class="display" style="font-size:34px;margin-bottom:12px">${ps.length ? "Who's playing?" : 'Add your first player'}</h2>
+  <div class="frgrid">${cards}
+    ${addDraft ? '' : `<button class="frcard new" data-act="addStart"><span class="display">+ Add player</span><span>Each player gets their own teams and progress</span></button>`}
+  </div>${form}
+  <div style="margin-top:28px">${cloudPanel()}</div>`;
+}
+function bindPlayers(){
+  const n = document.getElementById('pname');
+  if(n){ n.oninput = () => { addDraft.name = n.value; }; n.onkeydown = e => { if(e.key==='Enter') ACT.addPlayer(); }; }
+}
+ACT.pickPlayer = d => { setMe(d.id); toast(`Let's go, ${ME.name}!`); go('home'); };
+ACT.switchPlayer = () => { Cloud.flush(); setMe(''); go('players'); };
+ACT.addStart = () => { const used = livePlayers().map(p=>p.color); addDraft = {name:'', color: PLAYER_COLORS.find(c=>!used.includes(c)) || PLAYER_COLORS[0]}; render(); const n = document.getElementById('pname'); if(n) n.focus(); };
+ACT.pickPColor = d => { addDraft.color = d.v; render(); };
+ACT.addCancel = () => { addDraft = null; render(); };
+ACT.addPlayer = () => {
+  const name = (addDraft.name||'').trim();
+  if(!name){ toast('Type a name first.'); return; }
+  const p = newPlayer(name, addDraft.color);
+  FAM.players.push(p); setMe(p.id); addDraft = null; save();
+  toast(`Welcome, ${name}! Start your first franchise.`); go('home');
+};
+
+/* ---------- family code panel (players screen + Coach's Office) ---------- */
+function cloudPanel(){
+  let body = '';
+  if(!Cloud.usable) body = '';
+  else if(Cloud.code) body = `<div class="codebig tnum" id="codeText">${esc(Cloud.code)}</div>
+      <div class="row"><button class="btn" data-act="copyCode">Copy code</button><button class="btn" data-act="syncNow">Sync now</button><button class="link" data-act="disconnect">Disconnect this device</button></div>
+      <p class="muted" style="margin:0;font-size:14px">On another device: open the game, tap <b>I have a code</b>, and type this in.</p>`;
+  else if(codeMode==='enter') body = `<div class="row" style="align-items:end"><label class="fld">Family code<input class="txt" id="famcode" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. comets-452"></label>
+      <button class="btn primary" data-act="connect">Connect</button><button class="link" data-act="codeCancel">Cancel</button></div>`;
+  else body = `<div class="row"><button class="btn primary" data-act="createCode">Create a family code</button><button class="btn" data-act="codeEnter">I have a code</button></div>`;
+  return `<section class="panel stack"><div class="eyebrow">Family code · cloud save</div>
+    <p style="margin:0">One code for the whole family. Enter it on the laptop and the iPad, and every player's teams and progress follow them.</p>
+    ${body}<div class="muted" data-cloud style="font-size:14px">${cloudLine()}</div></section>`;
+}
+// Forgive how a code is typed: "Comets 452", "comets452" and "COMETS-452" all mean comets-452.
+const normalizeCode = raw => { const c = String(raw||'').toLowerCase().replace(/[^a-z0-9]/g,''); const m = c.match(/^([a-z]+)(\d+)$/); return m ? `${m[1]}-${m[2]}` : c; };
+ACT.codeEnter = () => { codeMode = 'enter'; render(); const i = document.getElementById('famcode'); if(i) i.focus(); };
+ACT.codeCancel = () => { codeMode = ''; render(); };
+ACT.createCode = async (d, el) => {
+  el.disabled = true; el.textContent = 'Creating…';
+  try { const code = await Cloud.generate(); Cloud.setCode(code); codeMode = ''; await Cloud.sync(); toast(`Family code created: ${code}. Write it down!`); }
+  catch(e){ toast(e.message); }
+  render();
+};
+ACT.connect = async (d, el) => {
+  const code = normalizeCode(document.getElementById('famcode').value);
+  if(!/^[a-z0-9-]{4,40}$/.test(code)){ toast('Family codes look like comets-452.'); return; }
+  el.disabled = true;
+  let remote;
+  try { remote = await Cloud.fetchAll(code); } catch(e){ toast(e.message); el.disabled = false; return; }
+  if(!remote.some(p => !p.deleted)){ toast(`No family found for “${code}”. Check the spelling, or create a new code.`); el.disabled = false; return; }
+  Cloud.setCode(code); codeMode = '';
+  await Cloud.sync();
+  if(!ME && livePlayers().length===1) setMe(livePlayers()[0].id);
+  toast(`Connected! ${livePlayers().length} player${livePlayers().length===1?'':'s'} in this family.`);
+  render();
+};
+ACT.copyCode = () => {
+  navigator.clipboard.writeText(Cloud.code).then(() => toast('Code copied.'), () => {
+    const el = document.getElementById('codeText'); const r = document.createRange(); r.selectNodeContents(el);
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('Code selected. Copy it from here.');
+  });
+};
+ACT.syncNow = () => Cloud.sync();
+ACT.disconnect = () => { Cloud.flush(); Cloud.setCode(''); Cloud.status = 'off'; toast('Disconnected. Progress stays on this device.'); render(); };
 
 /* ================= HOME ================= */
 function vHome(){
@@ -511,6 +647,7 @@ function vHome(){
     </button>`).join('');
   return `
   <header class="masthead">
+    <div class="row" style="gap:12px;margin-bottom:6px"><span class="pchip" style="--c:${ME.color}">${esc(ME.name)}</span><button class="link" data-act="switchPlayer">Switch player</button></div>
     <div class="eyebrow">Own the team. Run the business. Win it all.</div>
     <h1 class="display">Franchise <span>Tycoon</span></h1>
     ${S.stats.answered ? `<div class="statstrip">
@@ -1100,6 +1237,12 @@ function vCoach(){
   <div class="gamebar"><button class="link" data-act="home">← Back to the game</button></div>
   <div class="stack">
     <div><div class="eyebrow">For parents</div><h1 class="display" style="font-size:clamp(48px,9vw,72px)">Coach's Office</h1></div>
+    <section class="panel stack"><div class="eyebrow">Player</div>
+      ${seg('coachPlayer', ME.id, livePlayers().map(p=>[p.id, esc(p.name)]))}
+      <span class="muted" style="font-size:14px">Everything below is ${esc(ME.name)}'s progress and settings. Picking a player here also makes them the one playing on this device.</span>
+      <div class="row" style="align-items:end" id="playerzone"><label class="fld">Name<input class="txt" id="rename" maxlength="16" value="${esc(ME.name)}" autocomplete="off"></label>
+        <button class="btn" data-act="rename">Save name</button><button class="link" data-act="askRemove">Remove player</button></div>
+    </section>
     <div class="kpis">
       <div class="kpi"><span class="eyebrow">Facts answered</span><b class="tnum">${S.stats.answered.toLocaleString()}</b></div>
       <div class="kpi"><span class="eyebrow">Accuracy</span><b class="tnum">${acc}%</b></div>
@@ -1115,18 +1258,12 @@ function vCoach(){
     <section class="panel stack"><div class="eyebrow">Settings</div>
       <div class="stack" style="gap:6px"><b>Facts in play</b>${seg('setRange', S.settings.range, [['auto',`Auto (now ×1–${S.unlocked})`],['10','×1–10'],['11','×1–11'],['12','×1–12']])}
         <span class="muted" style="font-size:14px">Auto adds ×11 once most of ×2–10 are solid, then ×12 once ×11 is solid.</span></div>
-      <div class="stack" style="gap:6px"><b>Game clock per play</b>${seg('setTimer', S.settings.timer, [['auto',`Adaptive (now ${PACE[S.pace]}s)`],[12,'Fixed 12s'],[8,'Fixed 8s'],[5,'Fixed 5s']])}
+      <div class="stack" style="gap:6px"><b>Game clock per play</b>${seg('setTimer', S.settings.timer, [['auto',`Adaptive (now ${PACE[S.pace]}s)`],[20,'Fixed 20s'],[12,'Fixed 12s'],[8,'Fixed 8s'],[5,'Fixed 5s']])}
         <span class="muted" style="font-size:14px">Adaptive speeds up one step after 3 right in a row and slows down one step after 2 misses (${PACE[0]}s down to ${PACE[PACE.length-1]}s). Answers in the first 40% of the clock count as “fast” big plays.</span></div>
       <div class="stack" style="gap:6px"><b>Sound</b>${seg('setSound', S.settings.sound, [[true,'On'],[false,'Off']])}</div>
     </section>
-    <section class="panel stack"><div class="eyebrow">Cloud save</div>
-      <p style="margin:0">Use the same family code on the laptop and the iPad and they'll share one set of teams. Pick something only your family would know, like <b>dioli-4471</b>.</p>
-      ${Cloud.code ? `<div class="row"><button class="btn" data-act="syncNow">Sync now</button><button class="link" data-act="disconnect">Disconnect this device</button></div>`
-        : `<div class="row" style="align-items:end"><label class="fld">Family code<input class="txt" id="famcode" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. dioli-4471"></label><button class="btn primary" data-act="connect" ${Cloud.usable?'':'disabled'}>Connect</button></div>`}
-      <div class="muted" data-cloud style="font-size:14px">${cloudLine()}</div>
-      <div id="cloudchoice"></div>
-    </section>
-    <section class="stack" id="resetzone"><div><button class="link" data-act="askReset">Reset all progress</button></div></section>
+    ${cloudPanel()}
+    <section class="stack" id="resetzone"><div><button class="link" data-act="askReset">Reset ${esc(ME.name)}'s progress</button></div></section>
     <p class="muted" style="font-size:14px;margin:0">Progress is always saved in this browser${Cloud.code?' and backed up to the cloud':''}. Without a family code, clearing Safari's website data erases it.</p>
   </div>`;
 }
@@ -1134,32 +1271,17 @@ ACT.cell = d => { coachSel = [+d.a, +d.b]; render(); };
 ACT.setRange = d => { S.settings.range = d.v; save(); render(); };
 ACT.setTimer = d => { S.settings.timer = d.v==='auto' ? 'auto' : +d.v; save(); render(); };
 ACT.setSound = d => { S.settings.sound = d.v==='true'; save(); render(); };
-ACT.askReset = () => { document.getElementById('resetzone').innerHTML = `<div class="row"><span>Erase every franchise and all fact history?</span><button class="btn danger" data-act="reset">Erase everything</button><button class="btn" data-act="coach">Cancel</button></div>`; };
-ACT.reset = () => { S = fresh(); save(); toast('All progress erased.'); go('home'); };
-
-let pendingRemote = null;
-const teamCount = s => `${s.franchises.length} team${s.franchises.length===1?'':'s'}, ${s.stats.answered.toLocaleString()} facts answered`;
-ACT.connect = async () => {
-  const code = (document.getElementById('famcode').value || '').trim().toLowerCase().replace(/\s+/g,'-');
-  if(!/^[a-z0-9-]{4,40}$/.test(code)){ toast('Use 4–40 letters, numbers or dashes for the family code.'); return; }
-  Cloud.setCode(code);
-  let remote;
-  try { remote = await Cloud.fetchRemote(); }
-  catch(e){ Cloud.setCode(''); toast(e.message); render(); return; }
-  const localEmpty = !S.franchises.length && !S.stats.answered;
-  if(!remote){ await Cloud.push(); toast('Connected. Progress on this device is now saved to the cloud.'); render(); return; }
-  remote = normalize(remote);
-  if(localEmpty){ S = remote; saveLocal(); Cloud.status='ok'; Cloud.lastSync=Date.now(); toast('Connected. Loaded your cloud save.'); render(); return; }
-  pendingRemote = remote; render();
-  document.getElementById('cloudchoice').innerHTML = `<div class="stack" style="gap:10px"><b>This code already has a save. Which one do you want to keep?</b>
-    <div class="row"><button class="btn primary" data-act="useCloud">Use the cloud save (${teamCount(remote)})</button>
-    <button class="btn" data-act="useLocal">Keep this device's progress (${teamCount(S)})</button></div>
-    <span class="muted" style="font-size:14px">The one you don't pick is replaced.</span></div>`;
+ACT.askReset = () => { document.getElementById('resetzone').innerHTML = `<div class="row"><span>Erase ${esc(ME.name)}'s teams and fact history?</span><button class="btn danger" data-act="reset">Erase everything</button><button class="btn" data-act="coach">Cancel</button></div>`; };
+ACT.reset = () => { S = ME.save = normalize(null); save(); toast(`${ME.name}'s progress erased.`); go('home'); };
+ACT.coachPlayer = d => { setMe(d.v); render(); };
+ACT.rename = () => { const n = (document.getElementById('rename').value||'').trim(); if(!n){ toast('Type a name first.'); return; } ME.name = n; save(); toast('Name saved.'); render(); };
+ACT.askRemove = () => { document.getElementById('playerzone').innerHTML = `<span>Remove ${esc(ME.name)} and all their teams${Cloud.code?' from every device':''}?</span><button class="btn danger" data-act="removePlayer">Remove ${esc(ME.name)}</button><button class="btn" data-act="coach">Cancel</button>`; };
+ACT.removePlayer = () => {
+  const p = ME, name = p.name;
+  p.deleted = true; p.updated = Date.now(); delete p.save;
+  setMe(''); saveLocal(); Cloud.push(p);
+  toast(`${name} was removed.`); go('players');
 };
-ACT.useCloud = () => { if(!pendingRemote) return; S = pendingRemote; pendingRemote = null; saveLocal(); Cloud.status='ok'; Cloud.lastSync=Date.now(); toast('Loaded the cloud save.'); render(); };
-ACT.useLocal = async () => { pendingRemote = null; S.updated = Date.now(); saveLocal(); await Cloud.push(); toast('Cloud save replaced with this device.'); render(); };
-ACT.syncNow = () => Cloud.sync().then(()=>{ if(view==='coach') render(); });
-ACT.disconnect = () => { Cloud.flush(); Cloud.setCode(''); Cloud.status='off'; toast('Disconnected. Progress stays on this device.'); render(); };
 
 render();
 Cloud.sync();

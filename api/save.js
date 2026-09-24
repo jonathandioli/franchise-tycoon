@@ -1,17 +1,25 @@
 // Cloud save for Franchise Tycoon.
-// One JSON file per family code in a private Vercel Blob store:
-//   GET  /api/save?code=smith-7421  -> { save: {...} | null }
-//   PUT  /api/save?code=smith-7421  -> body is the save; overwrites
-// The code is hashed into the pathname so it never appears in the store.
-import { put, get } from '@vercel/blob';
+// Each player is one JSON file in a private Vercel Blob store, grouped by family code:
+//   saves/<hash of family code>/<player id>.json
+//   GET  /api/save?code=smith-7421              -> { players: [ {id, name, color, updated, deleted?, save}, ... ] }
+//   PUT  /api/save?code=smith-7421&player=<id>  -> body is that one player; overwrites only their file
+// One file per player means two kids playing on two devices never overwrite each other.
+// The family code is hashed into the path so it never appears in the store.
+import { put, get, list } from '@vercel/blob';
 import { createHash } from 'node:crypto';
 
 const ACCESS = process.env.BLOB_ACCESS === 'public' ? 'public' : 'private';
 const MAX_BYTES = 512 * 1024;
 
-function pathFor(code) {
+function familyPrefix(code) {
   const h = createHash('sha256').update('franchise-tycoon:' + code).digest('hex').slice(0, 40);
-  return `saves/${h}.json`;
+  return `saves/${h}/`;
+}
+
+async function readJson(pathname) {
+  const r = await get(pathname, { access: ACCESS, useCache: false });
+  if (!r || r.statusCode !== 200) return null;
+  return JSON.parse(await new Response(r.stream).text());
 }
 
 export default async function handler(req, res) {
@@ -23,24 +31,31 @@ export default async function handler(req, res) {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return res.status(503).json({ error: 'Cloud save is not set up: connect a Blob store to this Vercel project.' });
   }
-  const pathname = pathFor(code);
+  const prefix = familyPrefix(code);
 
   try {
     if (req.method === 'GET') {
-      const r = await get(pathname, { access: ACCESS, useCache: false });
-      if (!r || r.statusCode !== 200) return res.status(200).json({ save: null });
-      const text = await new Response(r.stream).text();
-      return res.status(200).json({ save: JSON.parse(text) });
+      const pathnames = [];
+      let cursor;
+      do {
+        const page = await list({ prefix, cursor, limit: 100 });
+        page.blobs.forEach(b => pathnames.push(b.pathname));
+        cursor = page.hasMore ? page.cursor : undefined;
+      } while (cursor);
+      const players = (await Promise.all(pathnames.map(p => readJson(p).catch(() => null)))).filter(Boolean);
+      return res.status(200).json({ players });
     }
 
     if (req.method === 'PUT') {
+      const player = String(req.query.player || '');
+      if (!/^[a-z0-9]{4,24}$/.test(player)) return res.status(400).json({ error: 'Missing or invalid player id.' });
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      if (!body || typeof body !== 'object' || body.v !== 1 || !Array.isArray(body.franchises)) {
-        return res.status(400).json({ error: 'That does not look like a Franchise Tycoon save.' });
-      }
+      const valid = body && typeof body === 'object' && body.id === player && typeof body.name === 'string'
+        && body.name.length <= 24 && (body.deleted === true || (body.save && Array.isArray(body.save.franchises)));
+      if (!valid) return res.status(400).json({ error: 'That does not look like a Franchise Tycoon player.' });
       const json = JSON.stringify(body);
       if (json.length > MAX_BYTES) return res.status(413).json({ error: 'Save is too large.' });
-      await put(pathname, json, {
+      await put(prefix + player + '.json', json, {
         access: ACCESS,
         contentType: 'application/json',
         addRandomSuffix: false,
