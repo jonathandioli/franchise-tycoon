@@ -927,7 +927,7 @@ function answer(v, timedOut){
   G.i++;
   if(tier==='miss'){
     G.retry.push({a:q.a, b:q.b, due:G.i+4});
-    setTimeout(() => lockIn(q.a, q.b, () => setTimeout(nextPlay, 500)), 900);
+    setTimeout(() => lockIn(q.a, q.b, () => setTimeout(nextPlay, 500)), 500);
   } else setTimeout(nextPlay, res.big ? 1600 : 1100);
 }
 
@@ -943,7 +943,7 @@ function lockIn(a, b, done){
   el.innerHTML = `<div class="li-card" role="dialog" aria-modal="true" aria-label="Learn this fact">
     <div class="eyebrow">Let's lock this one in</div>
     <div class="li-fact tnum"><span class="li-q">${a} × ${b} =</span><span class="li-ans" id="liAns">${ans}</span></div>
-    <div class="li-type" id="liType" hidden>
+    <div class="li-type">
       <div style="font-weight:700;font-size:19px">Now you type it</div>
       <div class="ansbox empty" id="liBox">?</div>
       ${padHTML()}
@@ -951,22 +951,26 @@ function lockIn(a, b, done){
   document.body.appendChild(el);
   tone([392,523],.3,'sine',.25,.08);
   say(`${a} times ${b}`);
-  setTimeout(() => { const s = document.getElementById('liAns'); if(s) s.classList.add('show'); say(String(ans)); tone([523,659,784],.35,'sine',.12,.08); }, 1700);
-  setTimeout(() => {
-    const t = document.getElementById('liType'); if(!t) return;
-    t.hidden = false;
-    const ask = () => Pad.start(ans, v => {
-      const box = document.getElementById('liBox');
-      if(+v === ans){
-        box.className = 'ansbox right'; box.textContent = '✓ ' + ans; SFX.good();
-        setTimeout(() => { el.remove(); done(); }, 700);
-      } else {
-        box.className = 'ansbox wrong shake'; box.textContent = v;
-        setTimeout(ask, 700);
-      }
-    }, 'liBox');
-    ask();
-  }, 3200);
+  let revealed = false, closed = false;
+  const reveal = () => {
+    if(revealed || closed) return; revealed = true;
+    const s = document.getElementById('liAns'); if(s) s.classList.add('show');
+    say(String(ans)); tone([523,659,784],.35,'sine',.12,.08);
+  };
+  setTimeout(reveal, 1200);
+  // The keypad takes input right away; typing it correctly before the reveal just shows the answer and moves on.
+  const ask = () => Pad.start(ans, v => {
+    const box = document.getElementById('liBox');
+    if(+v === ans){
+      reveal(); closed = true;
+      box.className = 'ansbox right'; box.textContent = '✓ ' + ans; SFX.good();
+      setTimeout(() => { el.remove(); done(); }, 700);
+    } else {
+      box.className = 'ansbox wrong shake'; box.textContent = v;
+      setTimeout(ask, 350);
+    }
+  }, 'liBox');
+  ask();
 }
 ACT.askQuit = (d, el) => {
   el.outerHTML = `<span class="row" id="quitBtn" style="gap:8px"><span>Leave? This game won't count.</span><button class="btn danger" data-act="quit" style="min-height:40px;padding:8px 14px">Leave</button><button class="btn" data-act="stay" style="min-height:40px;padding:8px 14px">Keep playing</button></span>`;
