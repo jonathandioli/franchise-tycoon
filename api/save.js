@@ -10,13 +10,15 @@ import { createHash } from 'node:crypto';
 
 const ACCESS = process.env.BLOB_ACCESS === 'public' ? 'public' : 'private';
 
-// Connecting a Blob store sets BLOB_READ_WRITE_TOKEN, or <PREFIX>_READ_WRITE_TOKEN
-// when a custom env var prefix was chosen in the Vercel dashboard.
+// Blob credentials, in the order the SDK accepts them:
+//  - a read-write token (BLOB_READ_WRITE_TOKEN, or <PREFIX>_READ_WRITE_TOKEN with a custom prefix), or
+//  - newer stores: BLOB_STORE_ID + Vercel's OIDC token, which the SDK picks up itself when no token is passed.
 function blobToken() {
   if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN;
   const name = Object.keys(process.env).find(k => k.endsWith('_READ_WRITE_TOKEN'));
-  return name ? process.env[name] : '';
+  return name ? process.env[name] : undefined;
 }
+const hasBlobCredentials = () => Boolean(blobToken() || process.env.BLOB_STORE_ID);
 const MAX_BYTES = 512 * 1024;
 
 function familyPrefix(code) {
@@ -36,8 +38,8 @@ export default async function handler(req, res) {
   if (!/^[a-z0-9-]{4,40}$/.test(code)) {
     return res.status(400).json({ error: 'Family code must be 4–40 letters, numbers or dashes.' });
   }
-  const token = blobToken();
-  if (!token) {
+  const token = blobToken();   // undefined -> SDK uses OIDC with BLOB_STORE_ID
+  if (!hasBlobCredentials()) {
     // Names only (never values), so a misconnected store is easy to spot.
     const seen = Object.keys(process.env).filter(k => /BLOB|READ_WRITE|STORE/i.test(k));
     return res.status(503).json({
