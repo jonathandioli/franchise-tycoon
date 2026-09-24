@@ -9,6 +9,14 @@ import { put, get, list } from '@vercel/blob';
 import { createHash } from 'node:crypto';
 
 const ACCESS = process.env.BLOB_ACCESS === 'public' ? 'public' : 'private';
+
+// Connecting a Blob store sets BLOB_READ_WRITE_TOKEN, or <PREFIX>_READ_WRITE_TOKEN
+// when a custom env var prefix was chosen in the Vercel dashboard.
+function blobToken() {
+  if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN;
+  const name = Object.keys(process.env).find(k => k.endsWith('_READ_WRITE_TOKEN'));
+  return name ? process.env[name] : '';
+}
 const MAX_BYTES = 512 * 1024;
 
 function familyPrefix(code) {
@@ -16,8 +24,8 @@ function familyPrefix(code) {
   return `saves/${h}/`;
 }
 
-async function readJson(pathname) {
-  const r = await get(pathname, { access: ACCESS, useCache: false });
+async function readJson(pathname, token) {
+  const r = await get(pathname, { access: ACCESS, useCache: false, token });
   if (!r || r.statusCode !== 200) return null;
   return JSON.parse(await new Response(r.stream).text());
 }
@@ -28,8 +36,15 @@ export default async function handler(req, res) {
   if (!/^[a-z0-9-]{4,40}$/.test(code)) {
     return res.status(400).json({ error: 'Family code must be 4–40 letters, numbers or dashes.' });
   }
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return res.status(503).json({ error: 'Cloud save is not set up: connect a Blob store to this Vercel project.' });
+  const token = blobToken();
+  if (!token) {
+    // Names only (never values), so a misconnected store is easy to spot.
+    const seen = Object.keys(process.env).filter(k => /BLOB|READ_WRITE|STORE/i.test(k));
+    return res.status(503).json({
+      error: 'Cloud save is not set up: connect a Blob store to this Vercel project (Production environment), then redeploy.',
+      env: process.env.VERCEL_ENV || null,
+      storageVarsSeen: seen,
+    });
   }
   const prefix = familyPrefix(code);
 
@@ -38,11 +53,11 @@ export default async function handler(req, res) {
       const pathnames = [];
       let cursor;
       do {
-        const page = await list({ prefix, cursor, limit: 100 });
+        const page = await list({ prefix, cursor, limit: 100, token });
         page.blobs.forEach(b => pathnames.push(b.pathname));
         cursor = page.hasMore ? page.cursor : undefined;
       } while (cursor);
-      const players = (await Promise.all(pathnames.map(p => readJson(p).catch(() => null)))).filter(Boolean);
+      const players = (await Promise.all(pathnames.map(p => readJson(p, token).catch(() => null)))).filter(Boolean);
       return res.status(200).json({ players });
     }
 
@@ -60,6 +75,7 @@ export default async function handler(req, res) {
         contentType: 'application/json',
         addRandomSuffix: false,
         allowOverwrite: true,
+        token,
       });
       return res.status(200).json({ ok: true, updated: body.updated || null });
     }
