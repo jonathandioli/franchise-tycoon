@@ -5,50 +5,18 @@
 //   PUT  /api/save?code=smith-7421&player=<id>  -> body is that one player; overwrites only their file
 // One file per player means two kids playing on two devices never overwrite each other.
 // The family code is hashed into the path so it never appears in the store.
-import { put, get, list } from '@vercel/blob';
-import { createHash } from 'node:crypto';
+import { put, list } from '@vercel/blob';
+import { ACCESS, blobToken, hasBlobCredentials, notConfigured, validCode, familyHash, readJson } from './_blob.js';
 
-const ACCESS = process.env.BLOB_ACCESS === 'public' ? 'public' : 'private';
-
-// Blob credentials, in the order the SDK accepts them:
-//  - a read-write token (BLOB_READ_WRITE_TOKEN, or <PREFIX>_READ_WRITE_TOKEN with a custom prefix), or
-//  - newer stores: BLOB_STORE_ID + Vercel's OIDC token, which the SDK picks up itself when no token is passed.
-function blobToken() {
-  if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN;
-  const name = Object.keys(process.env).find(k => k.endsWith('_READ_WRITE_TOKEN'));
-  return name ? process.env[name] : undefined;
-}
-const hasBlobCredentials = () => Boolean(blobToken() || process.env.BLOB_STORE_ID);
 const MAX_BYTES = 512 * 1024;
-
-function familyPrefix(code) {
-  // Keep the original salt: changing it would orphan every existing family's saves.
-  const h = createHash('sha256').update('franchise-tycoon:' + code).digest('hex').slice(0, 40);
-  return `saves/${h}/`;
-}
-
-async function readJson(pathname, token) {
-  const r = await get(pathname, { access: ACCESS, useCache: false, token });
-  if (!r || r.statusCode !== 200) return null;
-  return JSON.parse(await new Response(r.stream).text());
-}
+const familyPrefix = code => `saves/${familyHash(code)}/`;
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const code = String(req.query.code || '').trim().toLowerCase();
-  if (!/^[a-z0-9-]{4,40}$/.test(code)) {
-    return res.status(400).json({ error: 'Family code must be 4–40 letters, numbers or dashes.' });
-  }
+  if (!validCode(code)) return res.status(400).json({ error: 'Family code must be 4–40 letters, numbers or dashes.' });
+  if (!hasBlobCredentials()) return notConfigured(res);
   const token = blobToken();   // undefined -> SDK uses OIDC with BLOB_STORE_ID
-  if (!hasBlobCredentials()) {
-    // Names only (never values), so a misconnected store is easy to spot.
-    const seen = Object.keys(process.env).filter(k => /BLOB|READ_WRITE|STORE/i.test(k));
-    return res.status(503).json({
-      error: 'Cloud save is not set up: connect a Blob store to this Vercel project (Production environment), then redeploy.',
-      env: process.env.VERCEL_ENV || null,
-      storageVarsSeen: seen,
-    });
-  }
   const prefix = familyPrefix(code);
 
   try {

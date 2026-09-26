@@ -289,7 +289,7 @@ try { navigator.storage && navigator.storage.persist && navigator.storage.persis
 const CODE_KEY = 'franchise-tycoon.code';
 const Cloud = {
   code: (()=>{ try { return localStorage.getItem(CODE_KEY) || ''; } catch(e){ return ''; } })(),
-  status: 'off', lastSync: 0, timers: {}, error: '',
+  status: 'off', lastSync: 0, timers: {}, error: '', email: null,
   get usable(){ return /^https?:$/.test(location.protocol); },
   url(code, pid){ return '/api/save?code=' + encodeURIComponent(code) + (pid ? '&player=' + pid : ''); },
   setCode(c){ this.code = c; try { c ? localStorage.setItem(CODE_KEY, c) : localStorage.removeItem(CODE_KEY); } catch(e){} },
@@ -316,6 +316,18 @@ const Cloud = {
     this.timers[id] = setTimeout(() => { delete this.timers[id]; this.push(FAM.players.find(p=>p.id===id)); }, 4000);
   },
   flush(){ return Promise.all(Object.keys(this.timers).map(id => { clearTimeout(this.timers[id]); delete this.timers[id]; return this.push(FAM.players.find(p=>p.id===id), true); })); },
+  async family(code){
+    const r = await fetch('/api/family?code=' + encodeURIComponent(code || this.code), {cache:'no-store'});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || 'Cloud save is unavailable.');
+    return j;
+  },
+  async setEmail(email, code){
+    const r = await fetch('/api/family?code=' + encodeURIComponent(code || this.code), {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({email})});
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error || 'Could not save the email.');
+    this.email = j.email; return j.email;
+  },
   // Merge player by player: whichever copy of each player is newer wins; local-only players get uploaded.
   async sync(){
     if(!this.code || !this.usable) return;
@@ -338,6 +350,7 @@ const Cloud = {
       saveLocal();
       for(const p of toPush) await this.push(p);
       this.status = 'ok'; this.lastSync = Date.now(); this.error = '';
+      try { this.email = (await this.family()).email; } catch(e){}
       if(!busy) render();
     } catch(e){ this.status = 'error'; this.error = e.message; }
     paintCloud();
@@ -346,7 +359,7 @@ const Cloud = {
   async generate(){
     for(let i=0;i<5;i++){
       const code = `${pick(MASCOTS).toLowerCase()}-${rnd(100,999)}`;
-      if(!(await this.fetchAll(code)).length) return code;
+      if(!(await this.fetchAll(code)).length && !(await this.family(code)).exists) return code;
     }
     throw new Error('Could not make a new code. Try again.');
   },
@@ -556,7 +569,8 @@ function render(){
   if(f) app.innerHTML = f();
   if(view==='new') bindNew();
   if(view==='players') bindPlayers();
-  if(view==='welcome'){ const i = document.getElementById('famcode'); if(i){ i.focus(); i.onkeydown = e => { if(e.key==='Enter') ACT.connect({}, document.querySelector('[data-act=connect]')); }; } }
+  if(view==='welcome'){ const em = document.getElementById('famemail'); if(em){ em.focus(); em.onkeydown = e => { if(e.key==='Enter') ACT.createCode({}, document.querySelector('[data-act=createCode]')); }; }
+    const i = document.getElementById('famcode'); if(i){ i.focus(); i.onkeydown = e => { if(e.key==='Enter') ACT.connect({}, document.querySelector('[data-act=connect]')); }; } }
 }
 const ACT = {};
 
@@ -565,7 +579,7 @@ const ACT = {};
 // Opened as a file, or when cloud save is down, the family step is skipped and saves stay on the device.
 const LOCAL_KEY = 'franchise-tycoon.localOnly';
 let localOnly = (()=>{ try { return localStorage.getItem(LOCAL_KEY)==='1'; } catch(e){ return false; } })();
-let welcomeMode = '', welcomeCode = '', welcomeErr = '';
+let welcomeMode = '', welcomeCode = '', welcomeErr = '', welcomeEmail = '';
 const needFamily = () => Cloud.usable && !Cloud.code && !localOnly;
 function setLocalOnly(v){ localOnly = v; try { v ? localStorage.setItem(LOCAL_KEY,'1') : localStorage.removeItem(LOCAL_KEY); } catch(e){} }
 
@@ -576,7 +590,18 @@ function vWelcome(){
       <div class="eyebrow">Your family code</div>
       <div class="codebig tnum" id="codeText">${esc(welcomeCode)}</div>
       <p style="margin:0;font-size:18px">Write this down. On the iPad or any other device, choose <b>Join my family</b> and type it in. Everyone's teams and progress will be there.</p>
+      ${Cloud.email ? `<p class="muted" style="margin:0">Saved with your email, <b>${esc(Cloud.email)}</b>, in case you lose it.</p>` : ''}
       <div class="row"><button class="btn" data-act="copyCode">Copy code</button><button class="btn primary big" data-act="welcomeDone">Add players</button></div>
+    </section>`;
+  else if(welcomeMode==='new') body = `
+    <section class="panel stack" style="max-width:640px">
+      <div class="eyebrow">New family</div>
+      <p style="margin:0">First, a parent email. We'll keep your family code with it so you can get it back if it's ever lost.</p>
+      <div class="row" style="align-items:end"><label class="fld">Parent email<input class="txt" id="famemail" type="email" inputmode="email" maxlength="200" autocomplete="email" autocapitalize="off" spellcheck="false" value="${esc(welcomeEmail)}" placeholder="you@example.com"></label>
+        <button class="btn primary" data-act="createCode">Create family code</button></div>
+      ${welcomeErr ? `<p class="minus" style="margin:0;font-weight:600">${esc(welcomeErr)}</p>` : ''}
+      ${welcomeErr && /not set up|unavailable/i.test(welcomeErr) ? `<div><button class="btn" data-act="playLocal">Play on this device for now</button></div>` : ''}
+      <div><button class="link" data-act="welcomeBack">← Back</button></div>
     </section>`;
   else if(welcomeMode==='join') body = `
     <section class="panel stack" style="max-width:640px">
@@ -589,7 +614,7 @@ function vWelcome(){
     </section>`;
   else body = `
     <div class="plays" style="max-width:760px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
-      <button class="play" data-act="createCode"><span class="x">New family</span><h3 class="display">First time playing</h3><span>We'll make a family code, like comets-452, to use on all your devices.</span></button>
+      <button class="play" data-act="welcomeNew"><span class="x">New family</span><h3 class="display">First time playing</h3><span>We'll make a family code, like comets-452, to use on all your devices.</span></button>
       <button class="play" data-act="welcomeJoin"><span class="x">Join my family</span><h3 class="display">Already have a code</h3><span>Playing on another device already? Type your family code to bring everyone's teams here.</span></button>
     </div>
     ${welcomeErr ? `<section class="panel stack" style="max-width:760px"><p class="minus" style="margin:0;font-weight:600">${esc(welcomeErr)}</p>
@@ -600,15 +625,20 @@ function vWelcome(){
   <h2 class="display" style="font-size:34px;margin-bottom:12px">${welcomeCode ? 'Your family is set up' : 'Set up your family'}</h2>
   ${body}`;
 }
+ACT.welcomeNew = () => { welcomeMode = 'new'; welcomeErr = ''; render(); };
 ACT.welcomeJoin = () => { welcomeMode = 'join'; welcomeErr = ''; render(); };
 ACT.welcomeBack = () => { welcomeMode = ''; welcomeErr = ''; render(); };
 ACT.welcomeDone = () => { welcomeCode = ''; welcomeMode = ''; go('players'); };
 ACT.playLocal = () => { setLocalOnly(true); welcomeErr = ''; go('players'); };
 ACT.createCode = async (d, el) => {
+  const email = (document.getElementById('famemail').value || '').trim();
+  welcomeEmail = email;
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){ welcomeErr = 'Enter a parent email, like you@example.com.'; render(); return; }
   el.disabled = true;
   try {
     const code = await Cloud.generate();
-    welcomeCode = code; welcomeErr = '';      // set first: sync re-renders, and this keeps the code on screen
+    await Cloud.setEmail(email, code);        // saves the family record, so the code is taken from here on
+    welcomeCode = code; welcomeErr = '';      // set before sync: sync re-renders, and this keeps the code on screen
     Cloud.setCode(code); setLocalOnly(false);
     await Cloud.sync();                       // uploads any players already on this device
   } catch(e){ welcomeCode = ''; welcomeErr = e.message; el.disabled = false; }
@@ -695,13 +725,25 @@ ACT.addPlayer = () => {
 };
 
 /* ---------- family code panel in Coach's Office ---------- */
+const emailForm = () => `<div class="row" style="align-items:end"><label class="fld">Parent email<input class="txt" id="famemail" type="email" inputmode="email" maxlength="200" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com"></label><button class="btn" data-act="saveEmail">Save email</button></div>`;
+ACT.editEmail = () => { document.getElementById('emailzone').innerHTML = emailForm(); document.getElementById('famemail').focus(); };
+ACT.saveEmail = async (d, el) => {
+  const email = (document.getElementById('famemail').value || '').trim();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){ toast('Enter an email like you@example.com.'); return; }
+  el.disabled = true;
+  try { await Cloud.setEmail(email); toast('Email saved.'); render(); }
+  catch(e){ toast(e.message); el.disabled = false; }
+};
 function cloudPanel(){
   let body = '';
   if(!Cloud.usable) body = '';
   else if(Cloud.code) body = `<div class="codebig tnum" id="codeText">${esc(Cloud.code)}</div>
       <div class="row"><button class="btn" data-act="copyCode">Copy code</button><button class="btn" data-act="syncNow">Sync now</button><button class="link" data-act="askSwitchFamily">Switch family</button></div>
       <div id="familyzone"></div>
-      <p class="muted" style="margin:0;font-size:14px">On another device: open the game, choose <b>Join my family</b>, and type this in.</p>`;
+      <p class="muted" style="margin:0;font-size:14px">On another device: open the game, choose <b>Join my family</b>, and type this in.</p>
+      <div id="emailzone">${Cloud.email
+        ? `<div class="row" style="gap:12px"><span>Parent email: <b>${esc(Cloud.email)}</b></span><button class="link" data-act="editEmail">Change</button></div>`
+        : `<div class="stack" style="gap:8px"><b>Add a parent email</b><span class="muted" style="font-size:14px">So you can get this code back if it's ever lost.</span>${emailForm()}</div>`}</div>`;
   else body = `<div class="row"><button class="btn primary" data-act="setupFamily">Set up a family code</button></div>`;
   return `<section class="panel stack"><div class="eyebrow">Family code · cloud save</div>
     <p style="margin:0">One code for the whole family. Every player's teams and progress follow them to any device that joins.</p>
@@ -1110,7 +1152,7 @@ function startBiz(){
 const STRATS = {
   one:   {n:1,  name:'Mirror',          school:'Identity property: 1 group of anything is itself.', tip:'Anything times 1 stays exactly the same.', steps:x=>[[`${x} × 1 stays ${x}`, x]]},
   ten:   {n:10, name:'Add a Zero',      school:'Place value: times 10 moves every digit one place left.', tip:'Times 10? Just put a zero on the end.', steps:x=>[[`${x} with a zero on the end`, 10*x]]},
-  two:   {n:2,  name:'Doubles',         school:'Doubles.', tip:'Times 2 means double it: add the number to itself.', steps:x=>[[`Double ${x}  (${x} + ${x})`, 2*x]]},
+  two:   {n:2,  name:'Doubles',         school:'Doubles.', tip:'Times 2 means double it: add the number to itself.', steps:x=>[[`Double ${x}\u2003(${x} + ${x})`, 2*x]]},
   five:  {n:5,  name:'Half of Ten',     school:'Half of ×10, or skip-count by 5s.', tip:'Times 10 is easy. Times 5 is exactly half of that.', steps:x=>[[`${x} × 10`, 10*x],[`Half of ${10*x}`, 5*x]]},
   nine:  {n:9,  name:'Ten Minus One',   school:'Use a known fact: ×10, then subtract one group (distributive property).', tip:'Do times 10, then take away one group.', steps:x=>[[`${x} × 10`, 10*x],[`${10*x} − ${x}`, 9*x]],
           bonus:'Check your answer: for 9 × 2 up to 9 × 10, the two digits always add up to 9. (9 × 7 = 63, and 6 + 3 = 9.)'},
