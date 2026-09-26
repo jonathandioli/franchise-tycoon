@@ -857,7 +857,7 @@ function vHub(){
     ${f.shark ? `<div class="sharkcard">${FIN}<div style="flex:1 1 220px"><div class="display" style="font-size:30px">A shark wants to make a deal</div><div class="muted">${esc(f.shark.name)} is waiting in your office.</div></div><button class="btn primary" data-act="shark">Hear the pitch</button></div>` : ''}
     ${f.needsTraining
       ? `<div class="traincard"><div style="flex:1 1 240px"><div class="display" style="font-size:32px">Training Camp</div><div class="muted">After a loss, the team hits the practice field before the next game. Finish training to earn a <b>$15M</b> bonus.</div></div><button class="btn primary big" data-act="train">Start training</button></div>`
-      : `<div class="playrow"><button class="btn primary big" data-act="play">Play game</button><span class="muted">About 3 minutes · ${SPORTS[f.sport].periods*SPORTS[f.sport].plays} plays</span><button class="btn" data-act="playbook">Playbook</button></div>`}
+      : `<div class="playrow"><button class="btn primary big" data-act="play">Play game</button><span class="muted">About 3 minutes · ${SPORTS[f.sport].periods*SPORTS[f.sport].plays} plays</span><button class="btn" data-act="trainOptional">Training Camp</button><button class="btn" data-act="playbook">Playbook</button></div>`}
     <section class="stack" style="margin-top:12px"><h2 class="display" style="font-size:34px">Front office</h2><div class="upgrades">${ups}</div></section>
     ${deals ? `<section class="panel"><div class="eyebrow" style="margin-bottom:8px">Shark deals</div>${deals}</section>` : ''}
     <section class="stack"><h2 class="display" style="font-size:34px">Trophy case</h2>
@@ -1330,6 +1330,8 @@ function startTraining(sid, a, b, required, foundation){
   T = {sid, a, b, x0, required, foundation: !!foundation, stage:'film', shown:1, guided:take(3), gi:0, si:0, done:[], scrim:[...take(3), x0], ci:0, right:0, fb:'', fbCls:''};
   go('train'); armTrain();
 }
+// Optional training any time: same order (core tables first), coach picks his weakest fact, no bonus.
+ACT.trainOptional = () => startCamp(false, coachPick([]));
 ACT.train = () => { const f = frById(cur); startCamp(true, f.trainFact || coachPick([])); };
 ACT.playbook = () => go('playbook');
 ACT.drill = d => {
