@@ -552,7 +552,7 @@ function go(v, id){ view = v; if(id!==undefined) cur = id; Pad.on = false; rende
 function render(){
   if(needFamily() || welcomeCode) view = 'welcome';
   else if(!ME && view!=='players') view = 'players';
-  const f = { welcome:vWelcome, players:vPlayers, home:vHome, new:vNew, hub:vHub, post:vPost, shark:vShark, coach:vCoach, train:vTrain, playbook:vPlaybook, tryout:vTryout }[view];
+  const f = { welcome:vWelcome, players:vPlayers, home:vHome, new:vNew, hub:vHub, post:vPost, shark:vShark, coach:vCoach, train:vTrain, playbook:vPlaybook, tryout:vTryout, found:vFound }[view];
   if(f) app.innerHTML = f();
   if(view==='new') bindNew();
   if(view==='players') bindPlayers();
@@ -1139,13 +1139,10 @@ function coachPick(missed){
 }
 const shuffle = arr => { const a = arr.slice(); for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; };
 
-/* ---------- foundations: every play is built on the anchor facts (×2, ×5, ×10) ---------- */
-const PREREQ = {two:[], ten:[], one:[], five:['ten'], nine:['ten'], eleven:['ten'], four:['two'], eight:['two'], three:['two'],
-  six:['five'], seven:['five','two'], twelve:['ten','two']};
+/* ---------- foundations: every strategy is built on three core tables (×2, ×5, ×10) ---------- */
 const ANCHORS = ['ten','two','five'];
-// Deepest first: six -> [ten, five]
-function prereqChain(id){ const out = []; const walk = i => (PREREQ[i]||[]).forEach(p => { walk(p); if(!out.includes(p)) out.push(p); }); walk(id); return out; }
-// A step only helps if it's automatic, so an anchor fact counts when it's right AND quick (under 5s on average).
+const UNLOCKS = {ten:'×9, ×11 and ×5', two:'×4, ×8 and ×3', five:'×6 and ×7'};
+// A core fact only helps as a step if it's automatic: right AND quick (under 5s on average).
 function anchorState(id){
   const n = STRATS[id].n, xs = Array.from({length:Math.min(10,maxFactor())-1}, (_,i)=>i+2).filter(x => x!==n);
   const recs = xs.map(x => S.facts[fkey(n,x)]).filter(r => r && r.n);
@@ -1154,42 +1151,60 @@ function anchorState(id){
   return ok/recs.length >= .75 ? 'solid' : 'weak';
 }
 const STATE_LABEL = {solid:'Solid', weak:'Needs work', unknown:'Not tested yet'};
-// After the film room: check the facts this play is built on (skipping ones already proven solid),
-// drill the first shaky one, then come back to this play's practice reps.
-function afterFilm(){
-  const toTest = prereqChain(T.sid).filter(p => anchorState(p)!=='solid');
-  if(toTest.length) startTryout(toTest, () => afterFoundations(), T.sid);
-  else toReps();
+const stateCls = st => st==='solid' ? 'plus' : st==='weak' ? 'minus' : 'muted';
+const foundationsSolid = () => ANCHORS.every(id => anchorState(id)==='solid');
+
+// Training Camp: core tables first. Until ×2, ×5 and ×10 are all solid, a session checks the ones
+// that aren't and drills one of them. After that, sessions teach the strategy for the missed fact.
+let FD = null;
+function startCamp(required, fact){
+  if(foundationsSolid()){ const [a,b] = fact; return startTraining(stratFor(a,b).id, a, b, required); }
+  FD = {required, fact}; go('found');
 }
-function afterFoundations(){
-  const weak = prereqChain(T.sid).find(p => anchorState(p)==='weak');
-  if(!weak) return toReps();
-  const parent = T, n = STRATS[weak].n;
-  startTraining(weak, parent.x0, n, false, parent);   // same number as the missed fact: 7×6 -> 7×5
+function vFound(){
+  const f = frById(cur);
+  return `
+  <div class="gamebar"><button class="link" data-act="open" data-id="${f.id}">${FD.required ? '← Front office (training still needed)' : '← Back to front office'}</button></div>
+  <div class="stack" style="max-width:760px">
+    <div><div class="eyebrow">Training Camp</div><h1 class="display" style="font-size:clamp(48px,9vw,72px)">Foundations first</h1>
+      <p style="margin:6px 0 0;font-size:19px;max-width:60ch">Every multiplication strategy is built on three core tables. Once <b>×2, ×5 and ×10</b> are automatic, you can work out any fact up to 12 × 12.</p></div>
+    <div class="plays" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">${ANCHORS.map(id => { const st = anchorState(id);
+      return `<div class="play" style="cursor:default"><span class="x">×${STRATS[id].n}</span><h3 class="display">${STRATS[id].name}</h3>
+        <span class="muted" style="font-size:14px">Base for ${UNLOCKS[id]}</span><b class="${stateCls(st)}">${STATE_LABEL[st]}</b></div>`; }).join('')}</div>
+    <p class="muted" style="margin:0">Right and under 5 seconds counts as solid. The strategies unlock once all three are solid.</p>
+    <div><button class="btn primary big" data-act="foundStart">Start the check</button></div>
+  </div>`;
+}
+ACT.foundStart = () => startTryout(ANCHORS.filter(id => anchorState(id)!=='solid'), afterCheck);
+// After the check: drill the first core table that isn't solid (one per session), using the missed fact's number when it fits.
+function afterCheck(){
+  const {required, fact:[a,b]} = FD;
+  const weak = ANCHORS.find(id => anchorState(id)!=='solid');
+  if(!weak){ toast('Foundations solid! The strategies are unlocked.'); return startTraining(stratFor(a,b).id, a, b, required); }
+  const n = STRATS[weak].n, x = [a,b].find(v => v!==n && v>=2 && v<=10) || rnd(3,9);
+  startTraining(weak, x, n, required, true);
 }
 function toReps(){ T.stage = 'guided'; go('train'); armTrain(); }
 
 let TO = null;  // tryout in progress
-function startTryout(anchors, after, forPlay){
+function startTryout(anchors, after){
   const qs = [];
   anchors.forEach(id => { const n = STRATS[id].n;
     shuffle(Array.from({length:8}, (_,i)=>i+2).filter(x=>x!==n)).slice(0,4).forEach(x => qs.push(chance(.5) ? {id, a:x, b:n} : {id, a:n, b:x})); });
-  TO = {anchors, qs, i:0, res:{}, after, forPlay, fb:''};
+  TO = {anchors, qs, i:0, res:{}, after, fb:''};
   anchors.forEach(id => TO.res[id] = {right:0, total:0, ms:0});
   go('tryout'); armTryout();
 }
 function vTryout(){
   const f = frById(cur), done = TO.i >= TO.qs.length;
   const head = `<div class="gamebar"><button class="link" data-act="open" data-id="${f.id}">← Back to front office</button></div>
-    <div><div class="eyebrow">Training Camp</div><h1 class="display" style="font-size:clamp(48px,9vw,72px)">${TO.forPlay ? 'Check your foundations' : 'Tryouts'}</h1>
-    <p style="margin:6px 0 0;font-size:19px;max-width:60ch">${TO.forPlay
-      ? `${esc(STRATS[TO.forPlay].name)} only works if these are automatic: ${TO.anchors.map(id=>'×'+STRATS[id].n).join(' and ')}. Show the coach they're solid.`
-      : `Every play is built on your basics: ${TO.anchors.map(id=>'×'+STRATS[id].n).join(', ')}. Show the coach what you've got.`}</p></div>`;
+    <div><div class="eyebrow">Training Camp</div><h1 class="display" style="font-size:clamp(48px,9vw,72px)">Core tables check</h1>
+    <p style="margin:6px 0 0;font-size:19px;max-width:60ch">${TO.anchors.map(id=>'×'+STRATS[id].n).join(', ')}: the base for every strategy. Show the coach they're automatic.</p></div>`;
   if(done){
     const rows = TO.anchors.map(id => { const r = TO.res[id], st = anchorState(id);
       return `<div class="deal"><span><b>×${STRATS[id].n}</b> · ${STRATS[id].name}</span><span class="${st==='solid'?'plus':'minus'}">${r.right} of ${r.total} · ${(r.ms/Math.max(1,r.total)/1000).toFixed(1)}s avg · ${STATE_LABEL[st]}</span></div>`; }).join('');
-    return `<div class="stack" style="max-width:760px">${head}<section class="panel stack"><div class="eyebrow">Tryout results</div><div>${rows}</div>
-      <p style="margin:0" class="muted">Right <i>and</i> quick (under 5 seconds) counts as solid. ${TO.forPlay ? 'Anything that needs work gets a quick drill first, then back to the play.' : 'The coach will start with anything that needs work.'}</p>
+    return `<div class="stack" style="max-width:760px">${head}<section class="panel stack"><div class="eyebrow">Core tables results</div><div>${rows}</div>
+      <p style="margin:0" class="muted">Right <i>and</i> quick (under 5 seconds) counts as solid. ${TO.after ? 'Next, the coach drills one that needs work.' : 'Training Camp drills anything that needs work, one table per session.'}</p>
       <div><button class="btn primary big" data-act="tryoutDone">Continue</button></div></section></div>`;
   }
   const q = TO.qs[TO.i];
@@ -1218,20 +1233,22 @@ ACT.tryoutDone = () => { const after = TO.after; TO = null; after ? after() : go
 ACT.tryouts = () => startTryout(ANCHORS, null);
 
 let T = null;
-function startTraining(sid, a, b, required, parent){
+function startTraining(sid, a, b, required, foundation){
   const n = STRATS[sid].n, x0 = a===n ? b : a;
   const pool = shuffle(Array.from({length:Math.min(maxFactor(),12)-2+1}, (_,i)=>i+2).filter(x => x!==x0));
   const take = k => { const out = []; for(let i=0;i<k;i++) out.push(pool.length ? pool.shift() : rnd(2,9)); return out; };
-  T = {sid, a, b, x0, required, parent: parent || null, because: parent ? parent.sid : null, stage:'film', shown:1, guided:take(3), gi:0, si:0, done:[], scrim:[...take(3), x0], ci:0, right:0, fb:'', fbCls:''};
+  T = {sid, a, b, x0, required, foundation: !!foundation, stage:'film', shown:1, guided:take(3), gi:0, si:0, done:[], scrim:[...take(3), x0], ci:0, right:0, fb:'', fbCls:''};
   go('train'); armTrain();
 }
-ACT.train = () => { const f = frById(cur); const [a,b] = f.trainFact || coachPick([]); startTraining(stratFor(a,b).id, a, b, true); };
+ACT.train = () => { const f = frById(cur); startCamp(true, f.trainFact || coachPick([])); };
 ACT.playbook = () => go('playbook');
-ACT.drill = d => { const n = STRATS[d.id].n, x = rnd(3, Math.min(9, maxFactor())); startTraining(d.id, x, n, false); };
-// Foundation drill done: back to the play it was building toward, straight to practice reps.
-ACT.runOriginal = () => { T = T.parent; toReps(); };
+ACT.drill = d => {
+  const core = ANCHORS.includes(d.id);
+  if(!core && !foundationsSolid()){ toast('This play unlocks when ×2, ×5 and ×10 are all solid.'); return; }
+  const n = STRATS[d.id].n, x = rnd(3, Math.min(9, maxFactor())); startTraining(d.id, x, n, false, core);
+};
 ACT.nextStep = () => { T.shown++; render(); };
-ACT.toGuided = () => { if(T.parent) toReps(); else afterFilm(); };
+ACT.toGuided = () => toReps();
 ACT.finishTraining = () => { go('hub'); };
 
 function vPlaybook(){
@@ -1240,11 +1257,12 @@ function vPlaybook(){
   <div class="gamebar"><button class="link" data-act="open" data-id="${f.id}">← Back to front office</button></div>
   <div class="stack">
     <div><div class="eyebrow">Training Camp</div><h1 class="display" style="font-size:clamp(48px,9vw,72px)">The Playbook</h1>
-      <p class="muted" style="margin:6px 0 0;max-width:60ch">Every fact has a play that makes it easier. Pick one to practice.</p></div>
-    <section class="panel stack"><div class="eyebrow">Your foundations</div>
-      <div class="row" style="gap:20px">${ANCHORS.map(id => { const st = anchorState(id); return `<span><b>×${STRATS[id].n}</b> <span class="${st==='solid'?'plus':st==='weak'?'minus':'muted'}">${STATE_LABEL[st]}</span></span>`; }).join('')}</div>
-      <div><button class="btn" data-act="tryouts">Take tryouts</button></div></section>
-    <div class="plays">${PLAYBOOK.map(id => { const s = STRATS[id]; return `<button class="play" data-act="drill" data-id="${id}"><span class="x">×${s.n}</span><h3 class="display">${s.name}</h3><span>${s.tip}</span><span class="muted" style="font-size:14px">In class: ${s.school}</span></button>`; }).join('')}</div>
+      <p class="muted" style="margin:6px 0 0;max-width:60ch">Start with the three core tables. Every other play is built on them.</p></div>
+    <h2 class="display" style="font-size:30px">Core tables</h2>
+    <div class="plays">${ANCHORS.map(id => { const s = STRATS[id], st = anchorState(id); return `<button class="play" data-act="drill" data-id="${id}"><span class="x">×${s.n}</span><h3 class="display">${s.name}</h3><span>${s.tip}</span><b class="${stateCls(st)}">${STATE_LABEL[st]}</b></button>`; }).join('')}</div>
+    <div><button class="btn" data-act="tryouts">Check my core tables</button></div>
+    <h2 class="display" style="font-size:30px">Strategies${foundationsSolid() ? '' : ' · unlock when all three core tables are solid'}</h2>
+    <div class="plays">${PLAYBOOK.filter(id => !ANCHORS.includes(id)).map(id => { const s = STRATS[id], locked = !foundationsSolid(); return `<button class="play" data-act="drill" data-id="${id}" ${locked ? 'aria-disabled="true" style="opacity:.5"' : ''}><span class="x">×${s.n}</span><h3 class="display">${s.name}</h3><span>${s.tip}</span><span class="muted" style="font-size:14px">${locked ? 'Locked' : 'In class: ' + s.school}</span></button>`; }).join('')}</div>
   </div>`;
 }
 
@@ -1259,7 +1277,7 @@ function vTrain(){
 
   if(T.stage==='film'){
     const steps = s.steps(T.x0), all = T.shown >= steps.length;
-    body = `${T.because ? `<section class="traincard"><div><div class="display" style="font-size:28px">First things first</div><div>${esc(STRATS[T.because].name)} is built on your ×${n} facts, and those need work. Lock these in, then we'll go back to ${esc(STRATS[T.because].name)}.</div></div></section>` : ''}
+    body = `${T.foundation ? `<section class="traincard"><div><div class="display" style="font-size:28px">Foundations · ×${n}</div><div>×${n} is one of the three core tables every strategy is built on. Lock it in and the plays that use it get easy.</div></div></section>` : ''}
       <section class="panel stack"><div class="eyebrow">Film room · watch the play</div>
       <div class="bigfact tnum">${T.a} × ${T.b}${all ? ` = <span style="color:var(--amber)">${T.a*T.b}</span>` : ''}</div>
       ${T.a!==T.b ? `<div class="muted" style="text-align:center;font-weight:600">Order doesn't matter: ${T.a} × ${T.b} is the same as ${T.b} × ${T.a}. (In class: turn-around facts.)</div>` : ''}
@@ -1281,7 +1299,7 @@ function vTrain(){
   }
   else if(T.stage==='scrim'){
     const x = T.scrim[T.ci], flip = (T.ci % 2 === 1), last = T.ci === T.scrim.length-1;
-    body = `<section class="panel stack">${bar}<div class="eyebrow">Scrimmage · ${T.ci+1} of ${T.scrim.length} · no clock, use the play in your head${last && !T.because ? ' · this is the one from the game!' : ''}</div>
+    body = `<section class="panel stack">${bar}<div class="eyebrow">Scrimmage · ${T.ci+1} of ${T.scrim.length} · no clock, use the play in your head${last && !T.foundation ? ' · this is the one from the game!' : ''}</div>
       <div class="bigfact tnum">${flip ? `${n} × ${x}` : `${x} × ${n}`}</div>
       <div class="ansbox empty" id="ansbox">?</div>
       <div id="tfb" class="${T.fbCls}" style="font-weight:700;min-height:24px">${T.fb}</div>
@@ -1290,10 +1308,10 @@ function vTrain(){
   else {
     body = `<section class="panel stack" style="text-align:center">
       <div class="res display W" style="font-size:clamp(64px,12vw,110px)">Training complete</div>
-      <p style="margin:0;font-size:19px">${T.right} of ${T.scrim.length} in the scrimmage. You just learned <b>${s.name}</b> for ×${n} facts.</p>
+      <p style="margin:0;font-size:19px">${T.right} of ${T.scrim.length} in the scrimmage. You just practiced <b>${s.name}</b> for ×${n} facts.</p>
+      ${T.foundation ? `<p style="margin:0" class="muted">Core tables: ${ANCHORS.map(id => `×${STRATS[id].n} <b class="${stateCls(anchorState(id))}">${STATE_LABEL[anchorState(id)]}</b>`).join(' · ')}. ${foundationsSolid() ? 'All solid: the strategies are unlocked!' : 'The strategies unlock when all three are solid.'}</p>` : ''}
       ${T.required ? `<div class="display" style="font-size:36px;color:var(--good)">+$15M training bonus</div>` : ''}
-      <div class="row" style="justify-content:center">${T.because ? `<button class="btn primary big" data-act="runOriginal">Back to ${esc(STRATS[T.because].name)}</button>` : ''}
-        ${T.because ? '' : `<button class="btn primary big" data-act="finishTraining">${T.required ? 'Back to the front office' : 'Done'}</button>`}</div></section>`;
+      <div class="row" style="justify-content:center"><button class="btn primary big" data-act="finishTraining">${T.required ? 'Back to the front office' : 'Done'}</button></div></section>`;
   }
   return `<div class="stack" style="max-width:760px">${head}${body}</div>`;
 }
@@ -1449,9 +1467,9 @@ function vCoach(){
       <div class="legend">${LV.map(l=>`<span><i style="background:${l.c}"></i>${l.t}</span>`).join('')}</div>
       <div id="cellinfo" style="text-align:center">${sel}</div>
     </section>
-    <section class="panel stack"><div class="eyebrow">Foundations · the anchor facts every strategy builds on</div>
+    <section class="panel stack"><div class="eyebrow">Foundations · the three core tables every strategy builds on</div>
       <div class="row" style="gap:24px">${ANCHORS.map(id => { const st = anchorState(id); return `<span style="font-size:18px"><b>×${STRATS[id].n}</b> <span class="${st==='solid'?'plus':st==='weak'?'minus':'muted'}">${STATE_LABEL[st]}</span></span>`; }).join('')}</div>
-      <p class="muted" style="margin:0">Solid means right and under 5 seconds. Training Camp drills a shaky foundation before teaching the plays built on it.</p></section>
+      <p class="muted" style="margin:0">Solid means right and under 5 seconds. Training Camp works on these first; strategies unlock once all three are solid.</p></section>
     ${trouble.length ? `<section class="panel stack"><div class="eyebrow">Trickiest facts right now</div><div class="trouble">${trouble.map(t=>{const [a,b]=t.k.split('x');return `<span>${a}×${b}</span>`;}).join('')}</div><p class="muted" style="margin:0">The game automatically shows these more often.</p></section>` : ''}
     <section class="panel stack"><div class="eyebrow">Settings</div>
       <div class="stack" style="gap:6px"><b>Facts in play</b>${seg('setRange', S.settings.range, [['auto',`Auto (now ×1–${S.unlocked})`],['10','×1–10'],['11','×1–11'],['12','×1–12']])}
