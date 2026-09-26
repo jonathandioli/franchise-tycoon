@@ -113,7 +113,9 @@ input.txt:focus{outline:2px solid var(--amber);outline-offset:1px}
 .pair.left{border-color:var(--good)}
 .g5{display:flex;gap:3px;padding:5px 6px;border-radius:8px;background:var(--panel2);border:1px solid var(--line)}
 .g5 i{width:11px;height:11px;border-radius:50%;background:var(--amber)}
+.pair .g5 + .g5 i{background:#7DB3FF}
 .pair.left .g5 i{background:var(--good)}
+.pair .b2{color:#7DB3FF}
 .pair b{font-family:Teko,sans-serif;font-size:20px;line-height:1;font-weight:600;color:var(--amber)}
 .pair.left b{color:var(--good)}
 .plays{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
@@ -1243,7 +1245,7 @@ ACT.coreInfo = d => {
   const s = STRATS[d.id], n = s.n, x = 7, st = anchorState(d.id);
   const stepList = (sid, ex = x) => STRATS[sid].steps(ex).map((stp,i,arr) => `<div class="step ${i===arr.length-1?'last-step':''}"><span class="n">${i+1}</span><span class="p">${esc(stp[0])}</span><span class="v tnum">${stp[1]}</span></div>`).join('');
   const steps = s.alt
-    ? [d.id, s.alt].map((sid,k) => `<b>Way ${k+1}: ${esc(STRATS[sid].name)}</b><span class="muted" style="font-size:15px;margin-top:-4px">${esc(STRATS[sid].tip)}</span>${sid==='fiveHalf'
+    ? [s.alt, d.id].map((sid,k) => `<b>Way ${k+1}: ${esc(STRATS[sid].name)}</b><span class="muted" style="font-size:15px;margin-top:-4px">${esc(STRATS[sid].tip)}</span>${sid==='fiveHalf'
         ? [8, 7].map(ex => `<div class="stack" style="gap:8px;margin-top:6px"><b style="font-size:17px">${ex%2 ? 'Odd' : 'Even'}: ${ex} × 5 = <span style="color:var(--amber)">${ex*5}</span></b>${fivePairs(ex)}${stepList(sid, ex)}</div>`).join('')
         : stepList(sid)}`).join('')
     : stepList(d.id);
@@ -1327,7 +1329,7 @@ ACT.tryouts = () => startTryout(ANCHORS, null);
 
 let T = null;
 function startTraining(sid, a, b, required, foundation){
-  if(S.ways && S.ways[sid]) sid = S.ways[sid];     // the way this player picked (×5: Ten Then Half / Half Then Ten)
+  sid = (S.ways && S.ways[sid]) || DEFAULT_WAY[sid] || sid;   // the way this player picked, else the default (×5: Half Then Ten)
   const n = STRATS[sid].n, x0 = a===n ? b : a;
   const pool = shuffle(Array.from({length:Math.min(maxFactor(),12)-2+1}, (_,i)=>i+2).filter(x => x!==x0));
   const take = k => { const out = []; for(let i=0;i<k;i++) out.push(pool.length ? pool.shift() : rnd(2,9)); return out; };
@@ -1344,12 +1346,13 @@ ACT.drill = d => {
   const n = STRATS[d.id].n, x = rnd(3, Math.min(9, maxFactor())); startTraining(d.id, x, n, false, core);
 };
 ACT.nextStep = () => { T.shown++; render(); };
+const DEFAULT_WAY = {five:'fiveHalf'};
 // The base id a way belongs to ('fiveHalf' -> 'five'), which is what S.ways is keyed by.
 // x × 5 as x groups of five dots, wrapped in pairs (each pair = 10), with an odd group left over as +5.
 function fivePairs(x){
   const g = '<div class="g5"><i></i><i></i><i></i><i></i><i></i></div>', tens = Math.floor(x/2), odd = x % 2;
   return `<div class="stack" style="gap:8px"><div class="pairs" role="img" aria-label="${x} groups of 5, paired into ${tens} tens${odd?' with 1 group left over':''}">
-      ${Array.from({length:tens}, () => `<div class="pair">${g}${g}<b>10</b></div>`).join('')}
+      ${Array.from({length:tens}, () => `<div class="pair">${g}${g}<b>5 + <span class="b2">5</span> = 10</b></div>`).join('')}
       ${odd ? `<div class="pair left">${g}<b>+5</b></div>` : ''}</div>
     <div class="muted" style="text-align:center;font-weight:600">${x} groups of 5 → ${tens} pair${tens===1?'':'s'}${odd ? ' + 1 left over' : ''} → ${odd ? `${tens*10} + 5` : `${tens} ten${tens===1?'':'s'}`} = ${x*5}</div></div>`;
 }
@@ -1387,7 +1390,7 @@ function vTrain(){
     body = `${T.foundation ? `<section class="traincard"><div><div class="display" style="font-size:28px">Foundations · ×${n}</div><div>×${n} is one of the three core tables every strategy is built on. Lock it in and the plays that use it get easy.</div></div></section>` : ''}
       <section class="panel stack"><div class="eyebrow">Film room · watch the play</div>
       ${s.alt ? `<div class="stack" style="gap:6px"><b>Two ways to run this play. Pick the one that clicks:</b>
-        <div class="seg">${[baseWay(T.sid), STRATS[baseWay(T.sid)].alt].map(id => `<button data-act="pickWay" data-v="${id}" aria-pressed="${T.sid===id}">${STRATS[id].name}</button>`).join('')}</div></div>` : ''}
+        <div class="seg">${[STRATS[baseWay(T.sid)].alt, baseWay(T.sid)].map(id => `<button data-act="pickWay" data-v="${id}" aria-pressed="${T.sid===id}">${STRATS[id].name}</button>`).join('')}</div></div>` : ''}
       <div class="bigfact tnum">${T.a} × ${T.b}${all ? ` = <span style="color:var(--amber)">${T.a*T.b}</span>` : ''}</div>
       ${T.a!==T.b ? `<div class="muted" style="text-align:center;font-weight:600">Order doesn't matter: ${T.a} × ${T.b} is the same as ${T.b} × ${T.a}. (In class: turn-around facts.)</div>` : ''}
       ${T.sid==='fiveHalf' ? fivePairs(T.x0) : ''}
