@@ -246,7 +246,7 @@ const today = () => new Date().toISOString().slice(0,10);
 /* ================= save data ================= */
 // Storage keys keep the original 'franchise-tycoon' names so saves survive the rename to Fact Franchise.
 const KEY = 'franchise-tycoon.v1';
-function fresh(){ return {v:1, facts:{}, franchises:[], unlocked:10,
+function fresh(){ return {v:1, facts:{}, franchises:[], unlocked:10, ways:{},
   settings:{range:'auto', timer:'auto', timerV:2, sound:true}, pace:3, paceV:2,
   stats:{answered:0, correct:0, bestStreak:0, days:{}}}; }
 function normalize(o){ const s = Object.assign(fresh(), o||{}); s.settings = Object.assign(fresh().settings, s.settings); s.stats = Object.assign(fresh().stats, s.stats); s.updated = s.updated || 0;
@@ -1153,7 +1153,13 @@ const STRATS = {
   one:   {n:1,  name:'Mirror',          school:'Identity property: 1 group of anything is itself.', tip:'Anything times 1 stays exactly the same.', steps:x=>[[`${x} × 1 stays ${x}`, x]]},
   ten:   {n:10, name:'Add a Zero',      school:'Place value: times 10 moves every digit one place left.', tip:'Times 10? Just put a zero on the end.', steps:x=>[[`${x} with a zero on the end`, 10*x]]},
   two:   {n:2,  name:'Doubles',         school:'Doubles.', tip:'Times 2 means double it: add the number to itself.', steps:x=>[[`Double ${x}\u2003(${x} + ${x})`, 2*x]]},
-  five:  {n:5,  name:'Half of Ten',     school:'Half of ×10, or skip-count by 5s.', tip:'Times 10 is easy. Times 5 is exactly half of that.', steps:x=>[[`${x} × 10`, 10*x],[`Half of ${10*x}`, 5*x]]},
+  five:  {n:5,  name:'Ten Then Half',   school:'Half of ×10, or skip-count by 5s.', tip:'Times 10 is easy. Times 5 is exactly half of that.', alt:'fiveHalf', steps:x=>[[`${x} × 10`, 10*x],[`Half of ${10*x}`, 5*x]]},
+  // The other way to do ×5, for kids who find halving 70 harder than halving 7. No decimals:
+  // an odd number's "and a half" just becomes a 5 on the end (half of 7 is 3 and a half -> 35).
+  fiveHalf:{n:5, name:'Half Then Ten', school:'Halve the other number, then ×10. A half turns into a 5.', alt:'five',
+          tip:'Cut the other number in half, then add a zero. Odd number? Its half turns into a 5 on the end.',
+          steps:x=> x%2===0 ? [[`Half of ${x}`, x/2], [`${x/2} with a zero on the end`, 5*x]]
+                            : [[`Half of ${x} is ${(x-1)/2} and a half. Keep the ${(x-1)/2}`, (x-1)/2], [`The half turns into a 5 on the end`, 5*x]]},
   nine:  {n:9,  name:'Ten Minus One',   school:'Use a known fact: ×10, then subtract one group (distributive property).', tip:'Do times 10, then take away one group.', steps:x=>[[`${x} × 10`, 10*x],[`${10*x} − ${x}`, 9*x]],
           bonus:'Check your answer: for 9 × 2 up to 9 × 10, the two digits always add up to 9. (9 × 7 = 63, and 6 + 3 = 9.)'},
   four:  {n:4,  name:'Double Double',   school:'Double a double.', tip:'Times 4: double it, then double it again.', steps:x=>[[`Double ${x}`, 2*x],[`Double ${2*x}`, 4*x]]},
@@ -1226,13 +1232,16 @@ const CORE_BUILDS = {
 };
 ACT.coreInfo = d => {
   const s = STRATS[d.id], n = s.n, x = 7, st = anchorState(d.id);
-  const steps = s.steps(x).map((stp,i,arr) => `<div class="step ${i===arr.length-1?'last-step':''}"><span class="n">${i+1}</span><span class="p">${esc(stp[0])}</span><span class="v tnum">${stp[1]}</span></div>`).join('');
+  const stepList = sid => STRATS[sid].steps(x).map((stp,i,arr) => `<div class="step ${i===arr.length-1?'last-step':''}"><span class="n">${i+1}</span><span class="p">${esc(stp[0])}</span><span class="v tnum">${stp[1]}</span></div>`).join('');
+  const steps = s.alt
+    ? [d.id, s.alt].map((sid,k) => `<b>Way ${k+1}: ${esc(STRATS[sid].name)}</b><span class="muted" style="font-size:15px;margin-top:-4px">${esc(STRATS[sid].tip)}</span>${stepList(sid)}`).join('')
+    : stepList(d.id);
   const el = document.createElement('div');
   el.className = 'lockin'; el.id = 'coreModal';
   el.innerHTML = `<div class="li-card" role="dialog" aria-modal="true" aria-label="${esc(s.name)}" style="text-align:left">
     <div class="eyebrow">Core table · ×${n}</div>
-    <h2 class="display" style="font-size:52px">${esc(s.name)}</h2>
-    <p style="margin:0;font-size:19px">${esc(s.tip)}</p>
+    <h2 class="display" style="font-size:52px">${esc(s.alt ? 'Times Five' : s.name)}</h2>
+    ${s.alt ? `<p style="margin:0;font-size:19px">Two ways to do it. Try both and use the one that clicks.</p>` : `<p style="margin:0;font-size:19px">${esc(s.tip)}</p>`}
     <div class="bigfact tnum" style="font-size:72px">${x} × ${n} = <span style="color:var(--amber)">${x*n}</span></div>
     <div class="steps">${steps}</div>
     <p style="margin:0"><b>Why it matters:</b> it's the base for ${UNLOCKS[d.id]}. ${CORE_BUILDS[d.id]}</p>
@@ -1306,6 +1315,7 @@ ACT.tryouts = () => startTryout(ANCHORS, null);
 
 let T = null;
 function startTraining(sid, a, b, required, foundation){
+  if(S.ways && S.ways[sid]) sid = S.ways[sid];     // the way this player picked (×5: Ten Then Half / Half Then Ten)
   const n = STRATS[sid].n, x0 = a===n ? b : a;
   const pool = shuffle(Array.from({length:Math.min(maxFactor(),12)-2+1}, (_,i)=>i+2).filter(x => x!==x0));
   const take = k => { const out = []; for(let i=0;i<k;i++) out.push(pool.length ? pool.shift() : rnd(2,9)); return out; };
@@ -1320,6 +1330,9 @@ ACT.drill = d => {
   const n = STRATS[d.id].n, x = rnd(3, Math.min(9, maxFactor())); startTraining(d.id, x, n, false, core);
 };
 ACT.nextStep = () => { T.shown++; render(); };
+// The base id a way belongs to ('fiveHalf' -> 'five'), which is what S.ways is keyed by.
+const baseWay = id => STRATS[id].alt && !STRAT_ORDER.includes(id) ? STRATS[id].alt : id;
+ACT.pickWay = d => { S.ways = S.ways || {}; S.ways[baseWay(d.v)] = d.v; save(); T.sid = d.v; T.shown = 1; render(); };
 ACT.toGuided = () => toReps();
 ACT.finishTraining = () => { go('hub'); };
 
@@ -1351,6 +1364,8 @@ function vTrain(){
     const steps = s.steps(T.x0), all = T.shown >= steps.length;
     body = `${T.foundation ? `<section class="traincard"><div><div class="display" style="font-size:28px">Foundations · ×${n}</div><div>×${n} is one of the three core tables every strategy is built on. Lock it in and the plays that use it get easy.</div></div></section>` : ''}
       <section class="panel stack"><div class="eyebrow">Film room · watch the play</div>
+      ${s.alt ? `<div class="stack" style="gap:6px"><b>Two ways to run this play. Pick the one that clicks:</b>
+        <div class="seg">${[baseWay(T.sid), STRATS[baseWay(T.sid)].alt].map(id => `<button data-act="pickWay" data-v="${id}" aria-pressed="${T.sid===id}">${STRATS[id].name}</button>`).join('')}</div></div>` : ''}
       <div class="bigfact tnum">${T.a} × ${T.b}${all ? ` = <span style="color:var(--amber)">${T.a*T.b}</span>` : ''}</div>
       ${T.a!==T.b ? `<div class="muted" style="text-align:center;font-weight:600">Order doesn't matter: ${T.a} × ${T.b} is the same as ${T.b} × ${T.a}. (In class: turn-around facts.)</div>` : ''}
       <div class="steps">${steps.slice(0,T.shown).map((st,i)=>stepRow(i, st[0], st[1], i===steps.length-1?'last-step':'')).join('')}</div>
