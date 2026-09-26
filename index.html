@@ -842,6 +842,7 @@ function vHub(){
   const ups = UPGRADES.map(u=>{ const lv = f.up[u.id], cost = u.costs[lv];
     return `<div class="upg"><div class="spread"><h3 class="display">${u.name}</h3><div class="lv">${u.costs.map((_,i)=>`<i class="${i<lv?'on':''}"></i>`).join('')}</div></div>
       <div class="muted">${u.desc}</div>
+      <div style="font-size:15px;line-height:1.4">${upgradeNote(f, u, lv)}</div>
       ${lv>=u.costs.length ? `<div style="font-weight:700;color:var(--good)">Maxed out</div>` :
         `<button class="btn ${f.cash>=cost?'primary':''}" data-act="buy" data-u="${u.id}" ${f.cash>=cost?'':'disabled'}>Buy level ${lv+1} · ${money(cost)}</button>`}</div>`; }).join('');
   const deals = f.deals.map(d=>`<div class="deal"><span>${esc(d.shark)}: ${d.kind==='loan'?'you pay':'you get'} ${money(d.per)} a game</span><span class="muted">${d.left} game${d.left===1?'':'s'} left</span></div>`).join('');
@@ -862,7 +863,9 @@ function vHub(){
     ${f.needsTraining
       ? `<div class="traincard"><div style="flex:1 1 240px"><div class="display" style="font-size:32px">Training Camp</div><div class="muted">After a loss, the team hits the practice field before the next game. Finish training to earn a <b>$15M</b> bonus.</div></div><button class="btn primary big" data-act="train">Start training</button></div>`
       : `<div class="playrow"><button class="btn primary big" data-act="play">Play game</button><span class="muted">About 3 minutes · ${SPORTS[f.sport].periods*SPORTS[f.sport].plays} plays</span><button class="btn" data-act="trainOptional">Training Camp</button><button class="btn" data-act="playbook">Playbook</button></div>`}
-    <section class="stack" style="margin-top:12px"><h2 class="display" style="font-size:34px">Front office</h2><div class="upgrades">${ups}</div></section>
+    <section class="stack" style="margin-top:12px"><h2 class="display" style="font-size:34px">Front office</h2>
+      <p class="muted" style="margin:0;max-width:70ch">Star Player and Defensive Coach help when you're <b style="color:var(--text)">right but not lightning fast</b>. Lightning fast means answering while the clock bar is still green, and that's already the best play.</p>
+      <div class="upgrades">${ups}</div></section>
     ${deals ? `<section class="panel"><div class="eyebrow" style="margin-bottom:8px">Shark deals</div>${deals}</section>` : ''}
     <section class="stack"><h2 class="display" style="font-size:34px">Trophy case</h2>
       ${f.trophies.length ? `<div class="trophies">${f.trophies.map(t=>`<div class="trophy">${TROPHY(t.gold?'#FFB627':'#C9D3DD')}${esc(t.name)}</div>`).join('')}</div>` : `<p class="muted" style="margin:0">Empty so far. Win ${L.wins} games in the ${L.name} to earn your first trophy.</p>`}
@@ -877,6 +880,35 @@ ACT.buy = d => {
 };
 ACT.askDel = () => { document.getElementById('delzone').innerHTML = `<div class="row"><span>Retire this team for good? All its money and trophies go away.</span><button class="btn danger" data-act="del">Yes, retire it</button><button class="btn" data-act="open" data-id="${cur}">Keep it</button></div>`; };
 ACT.del = () => { S.franchises = S.franchises.filter(f=>f.id!==cur); save(); go('home'); };
+
+// Plain-language effect of an upgrade for this sport and league, now vs. the next level.
+// The numbers mirror the game: offense boost 12% per level; defense cuts the other team's chance 10 points per level.
+function upgradeNote(f, u, lv){
+  // Kid-friendly words instead of percentages.
+  const next = Math.min(lv+1, u.costs.length), maxed = lv >= u.costs.length;
+  const pct = v => v <= 0 ? 'never' : v < .15 ? 'once in a while' : v < .3 ? 'sometimes' : v < .45 ? 'often' : v < .6 ? 'a lot' : 'most of the time';
+  const arrow = (now, nxt, unit, dir = 'less') => maxed ? `<b>${now}</b>${unit ? ' ' + unit : ''} (maxed out)`
+    : now===nxt ? `<b>${now}</b>${unit ? ' ' + unit : ''} now, and a little <b style="color:var(--good)">${dir}</b> with level ${next}`
+    : `now <b>${now}</b>${unit ? ' ' + unit : ''} → <b style="color:var(--good)">${nxt}</b> with level ${next}`;
+  if(u.id==='off'){
+    const b = l => .12*l;
+    const say = {
+      football:   [l => pct(b(l)),     'Your star turns the field goal into a <b>touchdown</b>'],
+      basketball: [l => pct(b(l)),     'Your star turns the two into a <b>three</b>'],
+      baseball:   [l => pct(.45+b(l)), 'Your hit <b>drives in a run</b>'],
+      soccer:     [l => pct(.35+b(l)), 'Your shot <b>goes in</b>'],
+      hockey:     [l => pct(.35+b(l)), 'Your shot <b>goes in</b>'],
+    }[f.sport];
+    return `Right but not lightning fast? ${say[1]}: ${arrow(say[0](lv), say[0](next), '', 'more')}.`;
+  }
+  if(u.id==='def'){
+    const base = LEAGUES[f.league].p, scale = {baseball:.6, soccer:.35, hockey:.35}[f.sport] || 1;
+    const p = l => pct(Math.max(.08, base - .1*l) * scale);
+    return `Right but not lightning fast on defense? They still score: ${arrow(p(lv), p(next), '')}. Lightning fast always stops them.`;
+  }
+  const per = l => `+${money(10*l)}`;
+  return `Extra ticket money every game, win or lose: ${arrow(per(lv), per(next), 'a game')}.${maxed ? '' : ` Level ${next} pays for itself in ${Math.ceil(u.costs[lv]/10)} games.`}`;
+}
 
 /* ================= GAME ================= */
 let G = null, raf = 0;
