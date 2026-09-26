@@ -112,9 +112,10 @@ input.txt:focus{outline:2px solid var(--amber);outline-offset:1px}
 .pair{display:grid;gap:5px;justify-items:center;padding:7px 8px 4px;border:2px dashed var(--amber);border-radius:12px}
 .pair.left{border-color:var(--good)}
 .g5{display:flex;gap:3px;padding:5px 6px;border-radius:8px;background:var(--panel2);border:1px solid var(--line)}
-.g5 i{width:11px;height:11px;border-radius:50%;background:var(--amber)}
+.g5 i{width:11px;height:11px;border-radius:50%;background:#C9D3DD}
 .pair .g5 + .g5 i{background:#7DB3FF}
 .pair.left .g5 i{background:var(--good)}
+.pair .b1{color:#C9D3DD}
 .pair .b2{color:#7DB3FF}
 .pair b{font-family:Teko,sans-serif;font-size:20px;line-height:1;font-weight:600;color:var(--amber)}
 .pair.left b{color:var(--good)}
@@ -1352,7 +1353,7 @@ const DEFAULT_WAY = {five:'fiveHalf'};
 function fivePairs(x){
   const g = '<div class="g5"><i></i><i></i><i></i><i></i><i></i></div>', tens = Math.floor(x/2), odd = x % 2;
   return `<div class="stack" style="gap:8px"><div class="pairs" role="img" aria-label="${x} groups of 5, paired into ${tens} tens${odd?' with 1 group left over':''}">
-      ${Array.from({length:tens}, () => `<div class="pair">${g}${g}<b>5 + <span class="b2">5</span> = 10</b></div>`).join('')}
+      ${Array.from({length:tens}, () => `<div class="pair">${g}${g}<b><span class="b1">5</span> + <span class="b2">5</span> = 10</b></div>`).join('')}
       ${odd ? `<div class="pair left">${g}<b>+5</b></div>` : ''}</div>
     <div class="muted" style="text-align:center;font-weight:600">${x} groups of 5 → ${tens} pair${tens===1?'':'s'}${odd ? ' + 1 left over' : ''} → ${odd ? `${tens*10} + 5` : `${tens} ten${tens===1?'':'s'}`} = ${x*5}</div></div>`;
 }
