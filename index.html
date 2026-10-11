@@ -17,6 +17,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{min-height:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 Barlow,system-ui,-apple-system,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;
@@ -221,6 +222,20 @@ input.txt:focus{outline:2px solid var(--amber);outline-offset:1px}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;display:grid;gap:8px;width:min(92vw,440px);pointer-events:none}
 #toast div{background:#F4F7FA;color:#0B131D;font-weight:700;padding:12px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.45);animation:tin .3s ease-out}
 @keyframes tin{from{transform:translateY(12px);opacity:0}}
+/* ---------- fractions ---------- */
+.frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;line-height:.95;margin:0 .06em}
+.frac > span:first-child{border-bottom:.07em solid currentColor;padding:0 .14em .05em}
+.frac > span:last-child{padding:.05em .14em 0}
+.q .frac{font-size:.56em}
+.li-fact .frac{font-size:.58em}
+.op{font-size:.62em;color:var(--muted);margin:0 .1em;vertical-align:middle}
+.qm{color:var(--amber)}
+.cmpq{display:inline-grid;place-items:center;width:.9em;height:.9em;border:.05em dashed var(--amber);border-radius:.18em;color:var(--amber);font-size:.62em;vertical-align:middle;margin:0 .14em}
+.cmp-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.cmp-pad .key{font-size:58px;min-height:96px}
+.topic{display:flex;gap:14px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line);cursor:pointer}
+.topic:first-of-type{border-top:0}
+.topic input{width:22px;height:22px;margin-top:2px;accent-color:var(--amber);flex:none}
 /* ---------- lock-in (shown after a miss) ---------- */
 #coreModal{align-items:start}
 .lockin{position:fixed;inset:0;z-index:70;background:rgba(5,9,14,.9);display:grid;place-items:center;padding:16px;overflow-y:auto}
@@ -259,7 +274,7 @@ const today = () => new Date().toISOString().slice(0,10);
 // Storage keys keep the original 'franchise-tycoon' names so saves survive the rename to Fact Franchise.
 const KEY = 'franchise-tycoon.v1';
 function fresh(){ return {v:1, facts:{}, franchises:[], unlocked:10, ways:{},
-  settings:{range:'auto', timer:'auto', timerV:2, sound:true}, pace:3, paceV:2,
+  settings:{range:'auto', timer:'auto', timerV:2, sound:true, topics:{mult:true, equiv:false, compare:false, fracmul:false}}, pace:3, paceV:2, topicStats:{},
   stats:{answered:0, correct:0, bestStreak:0, days:{}}}; }
 function normalize(o){ const s = Object.assign(fresh(), o||{}); s.settings = Object.assign(fresh().settings, s.settings); s.stats = Object.assign(fresh().stats, s.stats); s.updated = s.updated || 0;
   if(!o || !o.settings || o.settings.timerV !== 2){ s.settings.timer = 'auto'; s.settings.timerV = 2; }  // saves from before the adaptive clock
@@ -511,6 +526,74 @@ function checkUnlock(){
   if(u===11 && share(elevens)>=.75) u = 12;
   if(u>S.unlocked){ S.unlocked = u; save(); if(S.settings.range==='auto') toast(`New level unlocked: ×${u} facts are now in play!`); }
 }
+
+/* ================= topics: multiplication + 4th grade fractions ================= */
+// Every play asks one question from a topic the parent turned on for this player.
+// A question knows how to draw itself (build(x) puts x in the blank), its answer, and how to explain a miss.
+const gcd = (a,b) => b ? gcd(b, a%b) : a;
+const DENS = [2,3,4,5,6,8,10,12];
+const blank = '<span class="qm">?</span>';
+const fr = (n,d) => `<span class="frac"><span>${n}</span><span>${d}</span></span>`;
+const op = t => `<span class="op">${t}</span>`;
+function properFrac(dens = DENS){ const d = pick(dens); let n; do { n = rnd(1, d-1); } while(gcd(n,d)!==1); return [n,d]; }
+const TOPICS = {
+  mult:   {name:'Multiplication facts', example:'7 × 8 = ?', make(){
+    const {a,b} = pickFact();
+    return {kind:'mult', a, b, ans:a*b, html:`${a} <small>×</small> ${b}`, full:`${a} × ${b} = ${a*b}`,
+      build: x => `<span class="li-q">${a} × ${b} =</span>${x}`, why:'', say:`${a} times ${b}`};
+  }},
+  equiv:  {name:'Equivalent fractions', example:'2/3 = ?/12 · simplify 8/12 = ?/3', make(){
+    if(chance(.12)){ const n = rnd(1,9); return {kind:'equiv', ans:n*10, full:`${n}/10 = ${n*10}/100`, build: x => `${fr(n,10)}${op('=')}${fr(x,100)}`,
+      why:`Tenths to hundredths: multiply the top and the bottom by 10. ${n} × 10 = ${n*10}.`}; }
+    const [n,d] = properFrac(), k = rnd(2, Math.max(2, Math.min(6, Math.floor(24/d)))), N = n*k, D = d*k, r = Math.random();
+    if(r < .55) return {kind:'equiv', ans:N, full:`${n}/${d} = ${N}/${D}`, build: x => `${fr(n,d)}${op('=')}${fr(x,D)}`,
+      why:`Multiply the top and the bottom by the same number. ${d} × ${k} = ${D}, so the top is ${n} × ${k} = ${N}.`};
+    if(r < .75) return {kind:'equiv', ans:D, full:`${n}/${d} = ${N}/${D}`, build: x => `${fr(n,d)}${op('=')}${fr(N,x)}`,
+      why:`Multiply the top and the bottom by the same number. ${n} × ${k} = ${N}, so the bottom is ${d} × ${k} = ${D}.`};
+    return {kind:'equiv', ans:n, full:`${N}/${D} = ${n}/${d}`, build: x => `${fr(N,D)}${op('=')}${fr(x,d)}`,
+      why:`Same size, smaller numbers. ${d} × ${k} = ${D}, and ${n} × ${k} = ${N}, so the top is ${n}.`};
+  }},
+  compare:{name:'Compare fractions', example:'3/4 ◯ 5/8: tap <, = or >', make(){
+    const r = Math.random(); let a, b, c, d, how;
+    if(r < .25){ b = d = pick([3,4,5,6,8,10,12]); a = rnd(1,b-1); do { c = rnd(1,b-1); } while(c===a); how = 'bottom'; }
+    else if(r < .4){ a = c = rnd(1,4); const ds = DENS.filter(x => x > a); b = pick(ds); do { d = pick(ds); } while(d===b); how = 'top'; }
+    else if(r < .5){ [a,b] = properFrac([2,3,4,5,6]); const k = pick([2,3,4,6].filter(k => DENS.includes(b*k))); c = a*k; d = b*k; how = 'match'; }
+    else { const base = pick([2,3,4,5,6]), k = pick([2,3,4].filter(k => DENS.includes(base*k))); b = base; a = rnd(1,base-1); d = base*k; do { c = rnd(1,d-1); } while(c*b===a*d); how = 'match'; }
+    if(chance(.5)) [a,b,c,d] = [c,d,a,b];
+    const L = a*d, R = c*b, ans = L<R ? '<' : L>R ? '>' : '=';
+    let why;
+    if(how==='bottom') why = `Same bottom number, so compare the tops: ${a} ${ans} ${c}.`;
+    else if(how==='top') why = `Same top number, so look at the bottoms. Fewer pieces means bigger pieces, so ${a}/${b} ${ans} ${c}/${d}.`;
+    else { const M = b*d/gcd(b,d), A = a*M/b, C = c*M/d, steps = [];
+      if(b!==M) steps.push(`${a}/${b} = ${A}/${M}`); if(d!==M) steps.push(`${c}/${d} = ${C}/${M}`);
+      why = `Make the bottoms match: ${steps.join(' and ')}. Now compare: ${A}/${M} ${ans} ${C}/${M}${ans==='=' ? ', the same amount!' : '.'}`; }
+    return {kind:'compare', ans, full:`${a}/${b} ${ans} ${c}/${d}`, build: x => `${fr(a,b)}<span class="cmpq">${x===blank ? '?' : x}</span>${fr(c,d)}`, why};
+  }},
+  fracmul:{name:'Fraction × whole number', example:'3 × 2/5 = ?/5', make(){
+    const b = pick(DENS), a = rnd(1, Math.min(b-1, 4)), n = rnd(2, 6);
+    const groups = n <= 4 ? Array(n).fill(`${a}/${b}`).join(' + ') : `${a}/${b} + ${a}/${b} + … (${n} times)`;
+    return {kind:'fracmul', ans:n*a, full:`${n} × ${a}/${b} = ${n*a}/${b}`, build: x => `${n}${op('×')}${fr(a,b)}${op('=')}${fr(x,b)}`,
+      why:`${n} groups of ${a}/${b}: ${groups}. Multiply the top: ${n} × ${a} = ${n*a}. The bottom stays ${b}.`};
+  }},
+};
+const enabledTopics = () => { const t = S.settings.topics || {}; const on = Object.keys(TOPICS).filter(k => t[k]); return on.length ? on : ['mult']; };
+function makeQuestion(){
+  const q = TOPICS[pick(enabledTopics())].make();
+  if(q.kind!=='mult') q.html = q.build(blank);
+  return q;
+}
+function recordTopic(kind, ok, ms){
+  const r = (S.topicStats[kind] ||= {n:0, c:0, t:0});
+  r.n++; if(ok){ r.c++; r.t += Math.min(ms, 20000); }
+  S.stats.answered++; if(ok) S.stats.correct++;
+  S.stats.days[today()] = (S.stats.days[today()]||0)+1;
+}
+// The <, =, > buttons for compare questions (keyboard: < or , / = / > or .)
+const Choice = { on:false, cb:null, start(cb){ this.on = true; this.cb = cb; }, pick(v){ if(!this.on) return; this.on = false; this.cb && this.cb(v); } };
+const cmpHTML = hidden => `<div class="cmp-pad" ${hidden ? 'hidden' : ''}>${['<','=','>'].map(v => `<button class="key" data-cmp="${v}" aria-label="${{'<':'less than','=':'equal to','>':'greater than'}[v]}">${esc(v)}</button>`).join('')}</div>`;
+document.addEventListener('pointerdown', e => { const b = e.target.closest('[data-cmp]'); if(b){ e.preventDefault(); Choice.pick(b.dataset.cmp); } });
+document.addEventListener('click', e => { const b = e.target.closest('[data-cmp]'); if(b && e.detail===0) Choice.pick(b.dataset.cmp); });
+document.addEventListener('keydown', e => { if(!Choice.on) return; const v = {'<':'<', ',':'<', '=':'=', '>':'>', '.':'>'}[e.key]; if(v){ e.preventDefault(); Choice.pick(v); } });
 
 /* ================= sound ================= */
 let AC;
@@ -947,7 +1030,7 @@ function vGame(){
       <div class="q tnum" id="q">&nbsp;</div>
       <div class="ansbox empty" id="ansbox">?</div>
       <div class="timer"><i id="tbar"></i></div>
-      ${padHTML()}
+      ${padHTML()}${cmpHTML(true)}
     </section>
   </div>`;
 }
@@ -965,20 +1048,26 @@ function nextPlay(){
   moveBall(50);
   // A missed fact comes back a few plays later so he gets another shot at it.
   const due = G.retry.findIndex(r => r.due <= G.i);
-  const {a,b} = due >= 0 ? G.retry.splice(due,1)[0] : pickFact();
+  const base = due >= 0 ? G.retry.splice(due,1)[0].q : makeQuestion();
   const isRetry = due >= 0;
-  const limit = clockSecs()*1000, fastMs = limit*.4, bar = document.getElementById('tbar');
-  G.q = {a, b, ans:a*b, t0:performance.now(), side:play.side, limit, retry:isRetry};
-  document.getElementById('q').innerHTML = `${a} <small>×</small> ${b}`;
-  document.getElementById('clock').textContent = `⏱ ${clockSecs()}s`;
-  Pad.start(a*b, v => answer(v, false));
+  // Fraction plays take more thinking, so they get half again as much clock.
+  const secs = clockSecs() * (base.kind==='mult' ? 1 : 1.5);
+  const limit = secs*1000, fastMs = limit*.4, bar = document.getElementById('tbar');
+  G.q = {...base, base, t0:performance.now(), side:play.side, limit, retry:isRetry, done:false};
+  document.getElementById('q').innerHTML = base.html;
+  document.getElementById('clock').textContent = `⏱ ${+secs.toFixed(1)}s`;
+  const isCmp = base.kind==='compare';
+  document.querySelector('.qpanel .pad').hidden = isCmp;
+  document.querySelector('.qpanel .cmp-pad').hidden = !isCmp;
+  if(isCmp){ Pad.on = false; Choice.start(v => { const box = document.getElementById('ansbox'); box.textContent = v; answer(v, false); }); }
+  else { Choice.on = false; Pad.start(base.ans, v => answer(v, false)); }
   cancelAnimationFrame(raf);
   const tick = () => {
     if(!G.q || G.q.done) return;
     const el = performance.now() - G.q.t0, frac = Math.max(0, 1 - el/limit);
     bar.style.transform = `scaleX(${frac})`;
     bar.style.background = el<=fastMs ? 'var(--good)' : frac>.25 ? 'var(--amber)' : 'var(--bad)';
-    if(el >= limit){ Pad.on = false; answer('', true); return; }
+    if(el >= limit){ Pad.on = false; Choice.on = false; answer('', true); return; }
     raf = requestAnimationFrame(tick);
   };
   raf = requestAnimationFrame(tick);
@@ -986,10 +1075,10 @@ function nextPlay(){
 function answer(v, timedOut){
   const q = G.q; if(!q || q.done) return; q.done = true; cancelAnimationFrame(raf);
   const ms = performance.now() - q.t0, limit = q.limit;
-  const ok = !timedOut && +v === q.ans && ms <= limit;
+  const ok = !timedOut && String(v) === String(q.ans) && ms <= limit;
   const tier = ok ? (ms <= limit*.4 ? 'fast' : 'good') : 'miss';
-  record(q.a, q.b, ok, ms);
-  if(!ok) G.missed.push([q.a, q.b]);
+  if(q.kind==='mult'){ record(q.a, q.b, ok, ms); if(!ok) G.missed.push([q.a, q.b]); }
+  else recordTopic(q.kind, ok, ms);
   const f = G.f;
   const res = q.side==='O' ? G.sp.O(tier, .12*f.up.off) : G.sp.D(tier, Math.max(.08, LEAGUES[f.league].p - .1*f.up.def));
   const us = res.us||0, them = res.them||0;
@@ -999,7 +1088,7 @@ function answer(v, timedOut){
   S.stats.bestStreak = Math.max(S.stats.bestStreak, G.best);
   const box = document.getElementById('ansbox');
   if(ok){ box.className = 'ansbox right'; box.textContent = (tier==='fast'?'⚡ ':'✓ ') + q.ans; }
-  else { box.className = 'ansbox wrong'; box.textContent = timedOut ? `Time! ${q.a} × ${q.b} = ${q.ans}` : `${q.a} × ${q.b} = ${q.ans}`; }
+  else { box.className = 'ansbox wrong'; box.textContent = (timedOut ? 'Time! ' : '') + q.full; }
   if(us){ const e = document.getElementById('usSc'); e.textContent = G.us; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
   if(them){ const e = document.getElementById('themSc'); e.textContent = G.them; e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
   if(q.side==='O') moveBall(us ? 91 : ok ? 72 : 42); else moveBall(them ? 9 : ok ? 58 : 28);
@@ -1017,8 +1106,8 @@ function answer(v, timedOut){
   }
   G.i++;
   if(tier==='miss'){
-    G.retry.push({a:q.a, b:q.b, due:G.i+4});
-    setTimeout(() => lockIn(q.a, q.b, () => setTimeout(nextPlay, 500)), 500);
+    G.retry.push({q:q.base, due:G.i+4});
+    setTimeout(() => lockIn(q.base, () => setTimeout(nextPlay, 500)), 500);
   } else setTimeout(nextPlay, res.big ? 1600 : 1100);
 }
 
@@ -1053,47 +1142,50 @@ function say(text, force){
     u.rate = .9; speechSynthesis.speak(u);
   } catch(e){}
 }
-function lockIn(a, b, done){
+function lockIn(q, done){
   if(view!=='game') return;
-  const ans = a*b, el = document.createElement('div');
+  const ans = q.ans, isCmp = q.kind==='compare', el = document.createElement('div');
   el.className = 'lockin';
-  el.innerHTML = `<div class="li-card" role="dialog" aria-modal="true" aria-label="Learn this fact">
+  el.innerHTML = `<div class="li-card" role="dialog" aria-modal="true" aria-label="Learn this one">
     <div class="eyebrow">Let's lock this one in</div>
-    <div class="li-fact tnum"><span class="li-q">${a} × ${b} =</span><span class="li-ans" id="liAns">${ans}</span></div>
+    <div class="li-fact tnum">${q.build(`<span class="li-ans" id="liAns">${esc(ans)}</span>`)}</div>
+    ${q.why ? `<p style="margin:0;font-size:18px;font-weight:600" id="liWhy" hidden>${esc(q.why)}</p>` : ''}
     <div class="li-type">
-      <div style="font-weight:700;font-size:19px">Now you type it</div>
+      <div style="font-weight:700;font-size:19px">${isCmp ? 'Now you pick it' : 'Now you type it'}</div>
       <div class="ansbox empty" id="liBox">?</div>
-      ${padHTML()}
+      ${isCmp ? cmpHTML(false) : padHTML()}
     </div></div>`;
   document.body.appendChild(el);
   tone([392,523],.3,'sine',.25,.08);
-  say(`${a} times ${b}`);
+  if(q.say) say(q.say);
   let revealed = false, closed = false;
   const reveal = () => {
     if(revealed || closed) return; revealed = true;
     const s = document.getElementById('liAns'); if(s) s.classList.add('show');
-    say(String(ans)); tone([523,659,784],.35,'sine',.12,.08);
+    const w = document.getElementById('liWhy'); if(w) w.hidden = false;
+    if(q.say) say(String(ans)); tone([523,659,784],.35,'sine',.12,.08);
   };
   setTimeout(reveal, 1200);
-  // The keypad takes input right away; typing it correctly before the reveal just shows the answer and moves on.
-  const ask = () => Pad.start(ans, v => {
+  // Input works right away; answering correctly before the reveal just shows the answer and moves on.
+  const check = v => {
     const box = document.getElementById('liBox');
-    if(+v === ans){
+    if(String(v) === String(ans)){
       reveal(); closed = true;
       box.className = 'ansbox right'; box.textContent = '✓ ' + ans; SFX.good();
-      setTimeout(() => { el.remove(); done(); }, 700);
+      setTimeout(() => { el.remove(); done(); }, q.why ? 1600 : 700);
     } else {
       box.className = 'ansbox wrong shake'; box.textContent = v;
       setTimeout(ask, 350);
     }
-  }, 'liBox');
+  };
+  const ask = () => isCmp ? Choice.start(check) : Pad.start(ans, check, 'liBox');
   ask();
 }
 ACT.askQuit = (d, el) => {
   el.outerHTML = `<span class="row" id="quitBtn" style="gap:8px"><span>Leave? This game won't count.</span><button class="btn danger" data-act="quit" style="min-height:40px;padding:8px 14px">Leave</button><button class="btn" data-act="stay" style="min-height:40px;padding:8px 14px">Keep playing</button></span>`;
 };
 ACT.stay = () => { const el = document.getElementById('quitBtn'); if(el) el.outerHTML = `<button class="link" data-act="askQuit" id="quitBtn">Leave game</button>`; };
-ACT.quit = () => { cancelAnimationFrame(raf); document.querySelectorAll('.lockin').forEach(e=>e.remove()); if(G) G.q = null; save(); go('hub', G.f.id); };
+ACT.quit = () => { cancelAnimationFrame(raf); Choice.on = false; document.querySelectorAll('.lockin').forEach(e=>e.remove()); if(G) G.q = null; save(); go('hub', G.f.id); };
 ACT.sound = (d, el) => { S.settings.sound = !S.settings.sound; save(); el.textContent = S.settings.sound?'Sound on':'Sound off'; };
 
 /* ================= POSTGAME ================= */
@@ -1617,6 +1709,12 @@ function vCoach(){
       <div class="row" style="gap:24px">${ANCHORS.map(id => { const st = anchorState(id); return `<span style="font-size:18px"><b>×${STRATS[id].n}</b> <span class="${st==='solid'?'plus':st==='weak'?'minus':'muted'}">${STATE_LABEL[st]}</span></span>`; }).join('')}</div>
       <p class="muted" style="margin:0">Solid means right and under 5 seconds. Training Camp works on these first; strategies unlock once all three are solid.</p></section>
     ${trouble.length ? `<section class="panel stack"><div class="eyebrow">Trickiest facts right now</div><div class="trouble">${trouble.map(t=>{const [a,b]=t.k.split('x');return `<span>${a}×${b}</span>`;}).join('')}</div><p class="muted" style="margin:0">The game automatically shows these more often.</p></section>` : ''}
+    <section class="panel stack"><div class="eyebrow">Topics in ${esc(ME.name)}'s games</div>
+      <div>${Object.entries(TOPICS).map(([k,t]) => { const on = !!(S.settings.topics||{})[k], st = S.topicStats[k];
+        return `<label class="topic"><input type="checkbox" data-topic="${k}" ${on ? 'checked' : ''}><span><b>${t.name}</b> <span class="muted">${esc(t.example)}</span>
+          ${k!=='mult' && st && st.n ? `<br><span class="muted" style="font-size:14px">${st.c} of ${st.n} right${st.c ? ` · ${(st.t/st.c/1000).toFixed(1)}s average` : ''}</span>` : ''}</span></label>`; }).join('')}</div>
+      <span class="muted" style="font-size:14px">Each play picks one of the topics that are on. Fraction plays get extra time on the clock. The business round, Shark Tank and Training Camp stay on multiplication.</span>
+    </section>
     <section class="panel stack"><div class="eyebrow">Settings</div>
       <div class="stack" style="gap:6px"><b>Facts in play</b>${seg('setRange', S.settings.range, [['auto',`Auto (now ×1–${S.unlocked})`],['10','×1–10'],['11','×1–11'],['12','×1–12']])}
         <span class="muted" style="font-size:14px">Auto adds ×11 once most of ×2–10 are solid, then ×12 once ×11 is solid.</span></div>
@@ -1639,6 +1737,12 @@ ACT.cell = d => { coachSel = [+d.a, +d.b]; render(); };
 ACT.setRange = d => { S.settings.range = d.v; save(); render(); };
 ACT.setTimer = d => { S.settings.timer = d.v==='auto' ? 'auto' : +d.v; save(); render(); };
 ACT.setSound = d => { S.settings.sound = d.v==='true'; save(); render(); };
+document.addEventListener('change', e => {
+  const k = e.target.dataset && e.target.dataset.topic; if(!k) return;
+  const next = {...(S.settings.topics || {mult:true}), [k]: e.target.checked};
+  if(!Object.values(next).some(Boolean)){ e.target.checked = true; toast('Keep at least one topic on.'); return; }
+  S.settings.topics = next; save(); toast(e.target.checked ? `${TOPICS[k].name}: on` : `${TOPICS[k].name}: off`);
+});
 ACT.testVoice = () => say('7 times 8 is 56', true);
 document.addEventListener('change', e => { if(e.target.id==='voiceSel'){ Voice.set(e.target.value); say('7 times 8 is 56', true); } });
 ACT.askReset = () => { document.getElementById('resetzone').innerHTML = `<div class="row"><span>Erase ${esc(ME.name)}'s teams and fact history?</span><button class="btn danger" data-act="reset">Erase everything</button><button class="btn" data-act="coach">Cancel</button></div>`; };
